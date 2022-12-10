@@ -73,8 +73,9 @@ namespace Zephyr
         CreateSubresource(FrameGraphResourceHandle<FrameGraphTexture> parent,
                           const FrameGraphTexture::SubresourceDescriptor& desc);
 
-        void Write(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target);
-        void Read(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target);
+        // we need usage because compute shader need storage image to be in layout VK_IMAGE_LAYOUT_GENERAL
+        void Write(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target, TextureUsage usage);
+        void Read(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target, TextureUsage usage);
         void SetRenderTarget(PassNode* node, const FrameGraphRenderTargetDescriptor& target);
 
         Driver* GetDriver();

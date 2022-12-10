@@ -35,7 +35,7 @@ namespace Zephyr
                 // We assume that if the image is not used for final presentation, it should be used as a sampler input
                 // in another pipeline or this attachment wouldn't make sense
                 cd.finalLayout =
-                    desc.present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    desc.present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
                 i++;
             }
@@ -50,7 +50,7 @@ namespace Zephyr
                 dsd.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
                 dsd.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
                 dsd.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-                dsd.finalLayout    = desc.depthStencil.save ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+                dsd.finalLayout    = desc.depthStencil.save ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
                                                               VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
                 i++;
             }
@@ -192,7 +192,7 @@ namespace Zephyr
 
         for (uint32_t i = 0; i < m_Descriptor.color.size(); i++)
         {
-            auto colorLayout = m_Descriptor.present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            auto colorLayout = m_Descriptor.present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             auto& color      = m_Colors[i];
             auto& descriptor = m_Descriptor.color[i];
@@ -200,7 +200,7 @@ namespace Zephyr
         }
         if (m_Descriptor.useDepthStencil)
         {
-            auto dsLayout = m_Descriptor.depthStencil.save ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+            auto  dsLayout   = m_Descriptor.depthStencil.save ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
                                      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             auto& descriptor = m_Descriptor.depthStencil;
             m_DepthStencil->SetLayout(0, descriptor.layer, dsLayout);

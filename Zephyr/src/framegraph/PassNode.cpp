@@ -8,13 +8,22 @@ namespace Zephyr
 
     PassNode::~PassNode() { delete m_Pass; }
 
+    void PassNode::AddRead(VirtualResourceBase* resource, TextureUsage usage)
+    {
+        auto& read    = m_Reads.emplace_back();
+        read.usage    = usage;
+        read.resource = resource;
+    }
+
+    void PassNode::AddWrite(VirtualResourceBase* resource, TextureUsage usage) {
+
+        auto& write    = m_Writes.emplace_back();
+        write.usage   = usage;
+        write.resource = resource;
+    }
+
     void PassNode::Devirtualize(RenderResourceManager* manager)
     {
-
-        if (m_Pass->GetName() == "color pass" || m_Pass->GetName() == "resolve")
-        {
-            int a = 0;
-        }
 
         for (auto& resource : m_Devirtualize)
         {
@@ -60,18 +69,26 @@ namespace Zephyr
     }
     void PassNode::Execute(FrameGraph* graph)
     {
-
+        if (m_Pass->GetName() == "color pass")
+        {
+            int a = 0;
+        }
         // add pipeline barrier
         // we combine all read usages and determin what stage should we wait
-        TextureUsage readsUsage = 0;
+        TextureUsage previousUsage = 0;
         for (auto& read : m_Reads)
         {
-            auto r = static_cast<VirtualResource*>(read);
-            readsUsage |= r->GetUsage();
+            auto r = static_cast<VirtualResource*>(read.resource);
+            m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), read.usage);
         }
-        if (readsUsage != 0)
+        for (auto& write : m_Writes)
         {
-            m_FG->GetDriver()->SetupBarrier(readsUsage);
+            auto r = static_cast<VirtualResource*>(write.resource);
+            m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), write.usage);
+        }
+        for (auto& write : m_Writes)
+        {
+
         }
         // execute
         m_Pass->Execute(graph, m_RenderTarget);

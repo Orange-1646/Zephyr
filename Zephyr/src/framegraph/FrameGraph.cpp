@@ -22,7 +22,6 @@ namespace Zephyr
                 // TODO: add type safety check
                 auto resourceNode = static_cast<ResourceNode*>(edge->from);
                 auto resource     = GetResource(resourceNode->GetHandle());
-                node->AddRead(resource);
                 resource->AddPassDependency(node);
             }
 
@@ -119,18 +118,20 @@ namespace Zephyr
     }
 
     // declare a write from renderpass to resource
-    void FrameGraph::Write(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target)
+    void FrameGraph::Write(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target, TextureUsage usage)
     {
         auto resourceNode = GetNode(target);
         CreateEdge(resourceNode, node);
+        node->AddWrite(GetResource(resourceNode->GetHandle()), usage);
     }
 
     // declare a read from resource to renderpass
-    void FrameGraph::Read(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target)
+    void FrameGraph::Read(PassNode* node, FrameGraphResourceHandle<FrameGraphTexture> target, TextureUsage usage)
     {
 
         auto resourceNode = GetNode(target);
         CreateEdge(node, resourceNode);
+        node->AddRead(GetResource(resourceNode->GetHandle()), usage);
     }
 
     void FrameGraph::SetRenderTarget(PassNode* node, const FrameGraphRenderTargetDescriptor& target)

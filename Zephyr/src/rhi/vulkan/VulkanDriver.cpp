@@ -765,25 +765,44 @@ namespace Zephyr
         return m_CurrentCommandBufferCompute;
     }
 
-    void VulkanDriver::SetupBarrier(TextureUsage readsUsage)
-    {
-        auto            cb = PrepareCommandBufferGraphics();
-        VkMemoryBarrier mb {};
-        mb.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        mb.srcAccessMask = VulkanUtil::GetAccessMaskFromTextureUsage(readsUsage);
-        mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    //void VulkanDriver::SetupBarrier(TextureUsage readsUsage)
+    //{
+    //    auto            cb = PrepareCommandBufferGraphics();
+    //    VkMemoryBarrier mb {};
+    //    mb.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    //    mb.srcAccessMask = VulkanUtil::GetAccessMaskFromTextureUsage(readsUsage);
+    //    mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
 
-        vkCmdPipelineBarrier(cb,
-                             VulkanUtil::GetPipelineStageFlagsFromTextureUsage(readsUsage),
-                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_DEPENDENCY_BY_REGION_BIT,
-                             1,
-                             &mb,
-                             0,
-                             nullptr,
-                             0,
-                             nullptr);
+    //    vkCmdPipelineBarrier(cb,
+    //                         VulkanUtil::GetPipelineStageFlagsFromTextureUsage(readsUsage),
+    //                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+    //                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+    //                         VK_DEPENDENCY_BY_REGION_BIT,
+    //                         1,
+    //                         &mb,
+    //                         0,
+    //                         nullptr,
+    //                         0,
+    //                         nullptr);
+    //}
+    void VulkanDriver::SetupBarrier(Handle<RHITexture> texture,TextureUsage nextUsage) {
+
+        auto            cb = PrepareCommandBufferGraphics();
+
+        auto vkTexture = GetResource<VulkanTexture>(texture);
+        vkTexture->TransitionLayout(cb, 0, 0, ALL_LAYERS, VulkanUtil::GetImageLayoutFromUsage(nextUsage));
+
+        //vkCmdPipelineBarrier(cb,
+        //                     VulkanUtil::GetPipelineStageFlagsFromTextureUsage(readsUsage),
+        //                     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+        //                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+        //                     VK_DEPENDENCY_BY_REGION_BIT,
+        //                     1,
+        //                     &mb,
+        //                     0,
+        //                     nullptr,
+        //                     0,
+        //                     nullptr);
     }
 
 } // namespace Zephyr

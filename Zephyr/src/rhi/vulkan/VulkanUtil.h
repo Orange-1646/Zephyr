@@ -211,10 +211,10 @@ namespace Zephyr
                     transition.srcStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
                     transition.dstStage      = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
                     break;
-
                     // We support PRESENT as a target layout to allow blitting from the swap chain.
                     // See also SwapChain::makePresentable().
                 case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
                 case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
                     transition.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
                     transition.dstAccessMask = 0;
@@ -321,6 +321,32 @@ namespace Zephyr
                 flag |= VK_ACCESS_SHADER_WRITE_BIT;
             }
             return flag;
+        }
+
+        static VkImageLayout GetImageLayoutFromUsage(TextureUsage usage)
+        {
+            if (usage & TextureUsageBits::ColorAttachment)
+            {
+                return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            }
+            if (usage & TextureUsageBits::DepthStencilAttachment)
+            {
+                return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            }
+            if (usage & TextureUsageBits::Sampled)
+            {
+                return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            }
+            if (usage & TextureUsageBits::SampledDepthStencil)
+            {
+                return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            }
+            if (usage & TextureUsageBits::Storage)
+            {
+                return VK_IMAGE_LAYOUT_GENERAL;
+            }
+
+            assert(false);
         }
 
         static VkSemaphore CreateSemaphore(VkDevice device)

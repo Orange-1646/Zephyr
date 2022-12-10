@@ -8,14 +8,14 @@ namespace Zephyr
                                                  void*                                       pUserData)
     {
         static uint32_t c = 0;
-        //if (c < 10)
-        //{
-        //    c++;
-        //}
-        //else
-        //{
-        //    return VK_FALSE;
-        //}
+        if (c < 10)
+        {
+            c++;
+        }
+        else
+        {
+            return VK_FALSE;
+        }
         if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
         {
             printf("[Validation Layer] Warning: %s\n\n\n\n", pCallbackData->pMessage);

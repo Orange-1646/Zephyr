@@ -175,6 +175,11 @@ namespace Zephyr
         std::vector<VkImageMemoryBarrier> barriers;
         barriers.reserve(lc);
 
+        if (target == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
+        {
+            uint32_t a = 0;
+        }
+
         for (uint32_t i = layer; i < lc + layer; i++)
         {
             auto layout = GetLayout(depth, i);
@@ -210,9 +215,19 @@ namespace Zephyr
         // barrier.subresourceRange.levelCount     = m_Description.levels;
         // barrier.srcAccessMask                   = transition.srcAccessMask;
         // barrier.dstAccessMask                   = transition.dstAccessMask;
-
-        vkCmdPipelineBarrier(
-            cb, transition.srcStage, transition.dstStage, 0, 0, nullptr, 0, nullptr, barriers.size(), barriers.data());
+        if (barriers.size() > 0)
+        {
+            vkCmdPipelineBarrier(cb,
+                                 transition.srcStage,
+                                 transition.dstStage,
+                                 0,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr,
+                                 barriers.size(),
+                                 barriers.data());
+        }
 
         for (uint32_t i = layer; i < lc + layer; i++)
         {

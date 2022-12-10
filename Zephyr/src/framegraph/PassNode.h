@@ -25,6 +25,12 @@ namespace Zephyr
         bool IsValid() { return color.size() > 0 || useDepth; }
     };
 
+    struct TextureRead
+    {
+        TextureUsage usage;
+        VirtualResourceBase* resource;
+    };
+
     class PassNode : public Node
     {
     public:
@@ -35,7 +41,8 @@ namespace Zephyr
 
         void SetRenderTarget(const FrameGraphRenderTargetDescriptor& desc) { m_RTDescriptor = desc; }
 
-        void AddRead(VirtualResourceBase* resource) { m_Reads.push_back(resource); }
+        void AddRead(VirtualResourceBase* resource, TextureUsage usage);
+        void AddWrite(VirtualResourceBase* resource, TextureUsage usage);
 
         void AddDevirtualize(VirtualResourceBase* resource) { m_Devirtualize.push_back(resource); }
 
@@ -63,7 +70,8 @@ namespace Zephyr
         // this is for figuring out what kind of memory barriers we need before executing the pass
         // if we read from a texture that was previously used as depth attachment, we need to wait on
         // late depth test write, for color attachment we need to wait on color attachment output write
-        std::vector<VirtualResourceBase*> m_Reads;
+        std::vector<TextureRead> m_Reads;
+        std::vector<TextureRead> m_Writes;
 
         PassRenderTarget m_RenderTarget;
     };

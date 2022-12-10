@@ -30,8 +30,8 @@ namespace Zephyr
         Handle<RHIRenderUnit>   CreateRenderUnit(const RenderUnitDescriptor& desc) override;
         Handle<RHIRenderTarget> CreateRenderTarget(const RenderTargetDescription&         desc,
                                                    const std::vector<Handle<RHITexture>>& attachments) override;
-        Handle<RHITexture>         CreateTexture(const TextureDescription& desc, VkImage image, VkFormat format);
-        Handle<RHITexture> GetSwapchainImage() override;
+        Handle<RHITexture>      CreateTexture(const TextureDescription& desc, VkImage image, VkFormat format);
+        Handle<RHITexture>      GetSwapchainImage() override;
         // resource update
         void UpdateBuffer(const BufferUpdateDescriptor& desc, Handle<RHIBuffer> handle);
         void UpdateTexture(const TextureUpdateDescriptor& desc, Handle<RHITexture> handle);
@@ -47,8 +47,8 @@ namespace Zephyr
         bool BeginFrame(uint64_t frame) override;
         void EndFrame() override;
         void WaitAndPresent() override;
-        void         DrawIndexed(uint32_t vertexOffset, uint32_t indexOffset, uint32_t indexCount) override;
-         void Draw(uint32_t vertexCount, uint32_t vertexOffset) override;
+        void DrawIndexed(uint32_t vertexOffset, uint32_t indexOffset, uint32_t indexCount) override;
+        void Draw(uint32_t vertexCount, uint32_t vertexOffset) override;
         void Dispatch(uint32_t x, uint32_t y, uint32_t z) override;
 
         void BeginRenderPass(Handle<RHIRenderTarget> rt) override;
@@ -67,7 +67,7 @@ namespace Zephyr
         void BeginComputeCommand() override;
         void EndComputeCommand() override;
 
-        void SetupBarrier(TextureUsage readsUsage) override;
+        void SetupBarrier(Handle<RHITexture> texture, TextureUsage nextUsage) override;
 
         // for internal uses
         VkCommandBuffer BeginSingleTimeCommandBuffer();
@@ -110,22 +110,21 @@ namespace Zephyr
         void SetupSemaphoreCompute();
         void SetupSemaphoreGraphics();
 
-
     private:
         Window*          m_Window;
         VulkanSwapchain* m_Swapchain;
         // Do NOT change the order of declaration of the member below.
-        VulkanContext         m_Context;
-        VulkanPipelineCache   m_PipelineCache;
+        VulkanContext       m_Context;
+        VulkanPipelineCache m_PipelineCache;
 
         uint32_t m_CurrentFrameIndex = 0;
 
         uint32_t                            m_HandleIdNext = 0;
         std::unordered_map<HandleID, void*> m_ResourceCache;
 
-        VkCommandBuffer              m_CurrentGraphicsCB = VK_NULL_HANDLE;
-        VkCommandBuffer              m_CurrentComputeCB  = VK_NULL_HANDLE;
-        std::vector<VkCommandPool>   m_CommandPoolGraphics;
+        VkCommandBuffer                           m_CurrentGraphicsCB = VK_NULL_HANDLE;
+        VkCommandBuffer                           m_CurrentComputeCB  = VK_NULL_HANDLE;
+        std::vector<VkCommandPool>                m_CommandPoolGraphics;
         std::vector<std::vector<VkCommandBuffer>> m_CommandBufferAvailableGraphics;
         std::vector<std::vector<VkCommandBuffer>> m_CommandBufferInUseGraphics;
         VkCommandBuffer                           m_CurrentCommandBufferGraphics = VK_NULL_HANDLE;
@@ -141,7 +140,7 @@ namespace Zephyr
         std::vector<std::vector<VkSemaphore>> m_SemaphoreInUse;
 
         VkSemaphore m_CurrentSemaphoreGraphics = VK_NULL_HANDLE;
-        VkSemaphore m_CurrentSemaphoreCompute = VK_NULL_HANDLE;
+        VkSemaphore m_CurrentSemaphoreCompute  = VK_NULL_HANDLE;
 
         std::vector<VkCommandBuffer> m_CommandBufferCompute;
 

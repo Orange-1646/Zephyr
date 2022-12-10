@@ -197,7 +197,7 @@ namespace Zephyr
                 desc.depth     = 4;
                 desc.levels    = 1;
                 desc.samples   = 1;
-                desc.format    = TextureFormat::DEPTH32F;
+                desc.format    = TextureFormat::DEPTH24_STENCIL8;
                 desc.usage     = TextureUsageBits::DepthStencilAttachment | TextureUsageBits::Sampled;
                 desc.sampler   = SamplerType::Sampler2DArray;
                 desc.pipelines = PipelineTypeBits::Graphics;
@@ -232,7 +232,7 @@ namespace Zephyr
                     rtDesc.useDepth            = true;
                     rtDesc.depthStencil.handle = passData->output;
 
-                    fg->Write(passNode, passData->output);
+                    fg->Write(passNode, passData->output, TextureUsageBits::DepthStencilAttachment);
                     fg->SetRenderTarget(passNode, rtDesc);
 
                     // passNode->SideEffect();
@@ -313,9 +313,9 @@ namespace Zephyr
                 passData->color        = fg->CreateTexture(colorDesc, false);
                 passData->depthStencil = fg->CreateTexture(dsDesc);
 
-                fg->Write(passNode, passData->color);
-                fg->Write(passNode, passData->depthStencil);
-                fg->Read(passNode, passData->shadow);
+                fg->Write(passNode, passData->color, TextureUsageBits::ColorAttachment);
+                fg->Write(passNode, passData->depthStencil, TextureUsageBits::DepthStencilAttachment);
+                fg->Read(passNode, passData->shadow, TextureUsageBits::SampledDepthStencil);
 
                 FrameGraphRenderTargetDescriptor rtDesc {};
                 rtDesc.color.push_back({passData->color, true, true});
@@ -392,8 +392,8 @@ namespace Zephyr
                 passData->color = fg->CreateTexture(colorDesc, true);
                 passData->input = fg->GetBlackboard().Get("postCompute");
 
-                fg->Write(passNode, passData->color);
-                fg->Read(passNode, passData->input);
+                fg->Write(passNode, passData->color, TextureUsageBits::ColorAttachment);
+                fg->Read(passNode, passData->input, TextureUsageBits::Sampled);
 
                 FrameGraphRenderTargetDescriptor rtDesc {};
                 rtDesc.color.push_back({passData->color, true, true});
@@ -447,8 +447,8 @@ namespace Zephyr
 
                 data->storage = fg->CreateTexture(desc);
 
-                fg->Write(passNode, data->storage);
-                fg->Read(passNode, data->input);
+                fg->Write(passNode, data->storage, TextureUsageBits::Storage);
+                fg->Read(passNode, data->input, TextureUsageBits::Sampled);
                 fg->GetBlackboard().Set("postCompute", data->storage);
             },
             [engine = m_Engine,

@@ -78,7 +78,8 @@ namespace Zephyr
             ColorAttachment        = 1,
             DepthStencilAttachment = ColorAttachment << 1,
             Sampled                = DepthStencilAttachment << 1,
-            Storage                = Sampled << 1
+            SampledDepthStencil    = Sampled << 1,
+            Storage                = SampledDepthStencil << 1
         };
     };
 

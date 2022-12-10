@@ -68,7 +68,8 @@ namespace Zephyr
         virtual void BeginComputeCommand()  = 0;
         virtual void EndComputeCommand()    = 0;
 
-        virtual void SetupBarrier(TextureUsage readsUsage) = 0;
+        // this is for the image layout transition between passes
+        virtual void SetupBarrier(Handle<RHITexture> texture, TextureUsage nextUsage) = 0;
 
         virtual void WaitIdle() = 0;
     };
