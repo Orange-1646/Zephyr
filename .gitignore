@@ -1,0 +1,31 @@
+# Binaries
+out/
+
+# Visual Studio files and folder
+.vs/
+**.sln
+**.vcxproj
+**.vcxproj.filters
+**.vcxproj.user
+**.csproj
+**.nsight-gfxproj
+**.DotSettings
+**.user
+
+# LFS Folders
+lfs/
+hooks/
+
+# Meta Files
+**.meta
+
+# Log files
+**.log
+
+# Auto saves
+*.auto
+
+# Dumps
+*.nvdbg
+*.nv-gpudmp
+*gpudmp.json

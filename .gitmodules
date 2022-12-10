@@ -1,0 +1,15 @@
+[submodule "Zephyr/vendor/glfw"]
+	path = Zephyr/vendor/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "Zephyr/vendor/assimp"]
+	path = Zephyr/vendor/assimp
+	url = https://github.com/assimp/assimp.git
+[submodule "Zephyr/vendor/spdlog"]
+	path = Zephyr/vendor/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "Zephyr/vendor/SPIRV-Cross"]
+	path = Zephyr/vendor/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross.git
+[submodule "Zephyr/vendor/stb"]
+	path = Zephyr/vendor/stb
+	url = https://github.com/nothings/stb.git
