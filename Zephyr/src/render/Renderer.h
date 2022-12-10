@@ -69,6 +69,7 @@ namespace Zephyr
         void DrawShadowMap(FrameGraph& fg);
         void DrawForward(FrameGraph& fg);
         void DrawResolve(FrameGraph& fg);
+        void DispatchPostProcessingCompute(FrameGraph& fg);
 
     private:
         Engine*         m_Engine;

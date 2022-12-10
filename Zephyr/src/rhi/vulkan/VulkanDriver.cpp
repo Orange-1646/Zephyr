@@ -32,7 +32,7 @@ namespace Zephyr
             VK_CHECK(vkCreateCommandPool(m_Context.Device(), &createInfo, nullptr, &m_CommandPoolGraphics[i]),
                      "Graphics Command Pool Creation");
 
-            createInfo.queueFamilyIndex = m_Context.QueueIndices().graphics;
+            createInfo.queueFamilyIndex = m_Context.QueueIndices().compute;
             VK_CHECK(vkCreateCommandPool(m_Context.Device(), &createInfo, nullptr, &m_CommandPoolCompute[i]),
                      "Compute Command Pool Creation");
         }
@@ -63,11 +63,11 @@ namespace Zephyr
             }
             for (auto& cb : m_CommandBufferInUseCompute[i])
             {
-                vkFreeCommandBuffers(device, m_CommandPoolGraphics[i], 1, &cb);
+                vkFreeCommandBuffers(device, m_CommandPoolCompute[i], 1, &cb);
             }
-            for (auto& cb : m_CommandBufferInUseCompute[i])
+            for (auto& cb : m_CommandBufferAvailableCompute[i])
             {
-                vkFreeCommandBuffers(device, m_CommandPoolGraphics[i], 1, &cb);
+                vkFreeCommandBuffers(device, m_CommandPoolCompute[i], 1, &cb);
             }
             vkDestroyCommandPool(device, m_CommandPoolGraphics[i], nullptr);
             vkDestroyCommandPool(device, m_CommandPoolCompute[i], nullptr);
@@ -430,7 +430,7 @@ namespace Zephyr
                 // EndSingleTimeCommandBuffer(cb);
                 m_PipelineCache.BindSampler2D(texture, set, binding);
                 break;
-            case BufferUsageBits::Storage:
+            case TextureUsageBits::Storage:
                 // cb = BeginSingleTimeCommandBuffer();
                 // t  = GetResource<VulkanTexture>(texture);
                 // t->TransitionLayout(cb, 0, 0, ALL_LAYERS, VK_IMAGE_LAYOUT_GENERAL);
@@ -556,10 +556,10 @@ namespace Zephyr
         VkSubmitInfo submit {};
         submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit.waitSemaphoreCount = m_CurrentSemaphoreGraphics != VK_NULL_HANDLE ? 1 : 0;
-        submit.pWaitSemaphores = m_CurrentSemaphoreGraphics != VK_NULL_HANDLE ? &m_CurrentSemaphoreGraphics : nullptr;
+        submit.pWaitSemaphores   = m_CurrentSemaphoreGraphics != VK_NULL_HANDLE ? &m_CurrentSemaphoreGraphics : nullptr;
+        submit.pWaitDstStageMask = &flags;
         submit.signalSemaphoreCount = synchronize ? 1 : 0;
         submit.pSignalSemaphores    = &m_CurrentSemaphoreCompute;
-        submit.pWaitDstStageMask    = &flags;
         submit.commandBufferCount   = 1;
         submit.pCommandBuffers      = &m_CurrentCommandBufferCompute;
 
@@ -584,7 +584,7 @@ namespace Zephyr
         }
 
         // we might use result from previous compute job on either vertex or fragment
-        VkPipelineStageFlags flags = 0;
+        std::vector<VkPipelineStageFlags> flags;
         auto                 sem1  = m_Swapchain->GetImageAcquireSemaphore();
         // this submit consumes the current compute semaphore
         VkSubmitInfo submit {};
@@ -596,14 +596,14 @@ namespace Zephyr
         if (present)
         {
             semsWait.push_back(m_Swapchain->GetImageAcquireSemaphore());
-            flags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            flags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
             semsSignal.push_back(m_Swapchain->GetPresentReadySemaphore());
         }
         if (m_CurrentSemaphoreCompute != VK_NULL_HANDLE)
         {
             semsWait.push_back(m_CurrentSemaphoreCompute);
-            flags |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            flags.push_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
         }
 
         if (synchronize)
@@ -611,9 +611,11 @@ namespace Zephyr
             semsSignal.push_back(m_CurrentSemaphoreGraphics);
         }
 
+        assert(flags.size() == semsWait.size());
+
         submit.waitSemaphoreCount   = semsWait.size();
         submit.pWaitSemaphores      = semsWait.data();
-        submit.pWaitDstStageMask    = &flags;
+        submit.pWaitDstStageMask    = flags.data();
         submit.signalSemaphoreCount = semsSignal.size();
         submit.pSignalSemaphores    = semsSignal.data();
         submit.commandBufferCount   = 1;
@@ -632,7 +634,7 @@ namespace Zephyr
         assert(m_CurrentSemaphoreCompute == VK_NULL_HANDLE);
 
         // create a semaphore if there's no available ones
-        if (m_SemaphoreAvailable.size() == 0)
+        if (m_SemaphoreAvailable[m_CurrentFrameIndex].size() == 0)
         {
             auto sem                  = VulkanUtil::CreateSemaphore(m_Context.Device());
             m_CurrentSemaphoreCompute = sem;
@@ -641,7 +643,7 @@ namespace Zephyr
         else
         {
             auto sem = m_SemaphoreAvailable[m_CurrentFrameIndex].back();
-            m_SemaphoreAvailable.pop_back();
+            m_SemaphoreAvailable[m_CurrentFrameIndex].pop_back();
             m_CurrentSemaphoreCompute = sem;
             m_SemaphoreInUse[m_CurrentFrameIndex].push_back(sem);
         }
@@ -652,7 +654,7 @@ namespace Zephyr
         assert(m_CurrentSemaphoreGraphics == VK_NULL_HANDLE);
 
         // create a semaphore if there's no available ones
-        if (m_SemaphoreAvailable.size() == 0)
+        if (m_SemaphoreAvailable[m_CurrentFrameIndex].size() == 0)
         {
             auto sem                   = VulkanUtil::CreateSemaphore(m_Context.Device());
             m_CurrentSemaphoreGraphics = sem;

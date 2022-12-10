@@ -41,6 +41,7 @@ namespace Zephyr
 
         DrawShadowMap(fg);
         DrawForward(fg);
+        DispatchPostProcessingCompute(fg);
         DrawResolve(fg);
 
         fg.Compile();
@@ -389,7 +390,7 @@ namespace Zephyr
                 colorDesc.pipelines = PipelineTypeBits::Graphics | PipelineTypeBits::Compute;
 
                 passData->color = fg->CreateTexture(colorDesc, true);
-                passData->input = fg->GetBlackboard().Get("colorOutput");
+                passData->input = fg->GetBlackboard().Get("postCompute");
 
                 fg->Write(passNode, passData->color);
                 fg->Read(passNode, passData->input);
@@ -416,6 +417,54 @@ namespace Zephyr
                 driver->BeginRenderPass(rt.rt);
                 driver->Draw(3, 0);
                 driver->EndRenderPass(rt.rt);
+            });
+    }
+
+    void Renderer::DispatchPostProcessingCompute(FrameGraph& fg)
+    {
+        struct PostProcessingComputePassData
+        {
+            FrameGraphResourceHandle<FrameGraphTexture> input;
+            FrameGraphResourceHandle<FrameGraphTexture> storage;
+        };
+        auto computePass = fg.AddPass<PostProcessingComputePassData>(
+            "post compute",
+            [engine = m_Engine](FrameGraph* fg, PassNode* passNode, PostProcessingComputePassData* data) {
+                data->input = fg->GetBlackboard().Get("colorOutput");
+
+                std::pair<uint32_t, uint32_t> windowDimension = engine->GetWindowDimension();
+
+                TextureDescription desc {};
+                desc.width     = windowDimension.first;
+                desc.height    = windowDimension.second;
+                desc.depth     = 1;
+                desc.levels    = 1;
+                desc.samples   = 1;
+                desc.format    = TextureFormat::RGBA8_UNORM;
+                desc.usage     = TextureUsageBits::Storage | TextureUsageBits::Sampled;
+                desc.sampler   = SamplerType::Sampler2D;
+                desc.pipelines = PipelineTypeBits::Graphics | PipelineTypeBits::Compute;
+
+                data->storage = fg->CreateTexture(desc);
+
+                fg->Write(passNode, data->storage);
+                fg->Read(passNode, data->input);
+                fg->GetBlackboard().Set("postCompute", data->storage);
+            },
+            [engine = m_Engine,
+             driver = m_Driver](FrameGraph* fg, PostProcessingComputePassData* m_Data, PassRenderTarget rt) {
+                auto dimension = engine->GetWindowDimension();
+                auto input     = static_cast<VirtualResource*>(fg->GetResource(m_Data->input))->GetRHITexture();
+                auto storage   = static_cast<VirtualResource*>(fg->GetResource(m_Data->storage))->GetRHITexture();
+
+                driver->BindTexture(storage, 0, 0, TextureUsageBits::Storage);
+                driver->BindTexture(input, 0, 1, TextureUsageBits::Sampled);
+                // bind shader
+                driver->BindShaderSet(engine->GetShaderSet("postCompute")->GetHandle());
+
+                uint32_t groupCountX = dimension.first % 16 == 0 ? dimension.first / 16 : dimension.first / 16 + 1;
+                uint32_t groupCountY = dimension.second % 16 == 0 ? dimension.second / 16 : dimension.second / 16 + 1;
+                driver->Dispatch(groupCountX, groupCountY, 1);
             });
     }
 } // namespace Zephyr

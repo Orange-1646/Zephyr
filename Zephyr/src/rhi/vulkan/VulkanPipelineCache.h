@@ -167,7 +167,7 @@ namespace Zephyr
         Viewport                            m_Viewport {};
         Scissor                             m_Scissor {};
 
-        RasterState m_CurrentRasterState;
+        RasterState m_CurrentRasterState {Culling::None, FrontFace::CounterClockwise};
         // std::unordered_map<PipelineKey, VkPipeline> m_PipelineCache;
         std::unordered_map<PipelineCacheKey, VkPipeline, hash_fn_pck> m_PipelineCacheGraphics;
         std::unordered_map<VulkanShaderSet*, VkPipeline>              m_PipelineCacheCompute;

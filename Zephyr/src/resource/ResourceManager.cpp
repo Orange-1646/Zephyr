@@ -115,7 +115,7 @@ namespace Zephyr
         shaderDesc.compute  = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/post.comp.spv"));
 
         auto postShader = new ShaderSet(shaderDesc, driver);
-        m_ShaderSets.insert({"post", postShader});
+        m_ShaderSets.insert({"postCompute", postShader});
 
         // resolve
         shaderDesc.pipeline   = PipelineTypeBits::Graphics;

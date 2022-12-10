@@ -169,25 +169,50 @@ namespace Zephyr
                                          uint32_t        layerCount,
                                          VkImageLayout   target)
     {
-        
         auto transition = VulkanUtil::GetImageTransitionMask(target);
         auto lc         = layerCount == ALL_LAYERS ? m_Description.depth - layer : layerCount;
 
-        VkImageMemoryBarrier barrier            = {};
-        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout                       = GetLayout(depth, layer);
-        barrier.newLayout                       = target;
-        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image                           = m_Image;
-        barrier.subresourceRange.aspectMask     = VulkanUtil::GetAspectMaskFromUsage(m_Description.usage);
-        barrier.subresourceRange.baseArrayLayer = layer;
-        barrier.subresourceRange.layerCount     = lc;
-        barrier.subresourceRange.baseMipLevel   = 0;
-        barrier.subresourceRange.levelCount     = m_Description.levels;
-        barrier.srcAccessMask                   = transition.srcAccessMask;
-        barrier.dstAccessMask                   = transition.dstAccessMask;
-        vkCmdPipelineBarrier(cb, transition.srcStage, transition.dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+        std::vector<VkImageMemoryBarrier> barriers;
+        barriers.reserve(lc);
+
+        for (uint32_t i = layer; i < lc + layer; i++)
+        {
+            auto layout = GetLayout(depth, i);
+            if (layout != target)
+            {
+                auto& barrier                           = barriers.emplace_back();
+                barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                barrier.oldLayout                       = GetLayout(depth, layer);
+                barrier.newLayout                       = target;
+                barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+                barrier.image                           = m_Image;
+                barrier.subresourceRange.aspectMask     = VulkanUtil::GetAspectMaskFromUsage(m_Description.usage);
+                barrier.subresourceRange.baseArrayLayer = i;
+                barrier.subresourceRange.layerCount     = 1;
+                barrier.subresourceRange.baseMipLevel   = 0;
+                barrier.subresourceRange.levelCount     = m_Description.levels;
+                barrier.srcAccessMask                   = transition.srcAccessMask;
+                barrier.dstAccessMask                   = transition.dstAccessMask;
+            }
+        }
+        // VkImageMemoryBarrier barrier            = {};
+        // barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        // barrier.oldLayout                       = GetLayout(depth, layer);
+        // barrier.newLayout                       = target;
+        // barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        // barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        // barrier.image                           = m_Image;
+        // barrier.subresourceRange.aspectMask     = VulkanUtil::GetAspectMaskFromUsage(m_Description.usage);
+        // barrier.subresourceRange.baseArrayLayer = layer;
+        // barrier.subresourceRange.layerCount     = lc;
+        // barrier.subresourceRange.baseMipLevel   = 0;
+        // barrier.subresourceRange.levelCount     = m_Description.levels;
+        // barrier.srcAccessMask                   = transition.srcAccessMask;
+        // barrier.dstAccessMask                   = transition.dstAccessMask;
+
+        vkCmdPipelineBarrier(
+            cb, transition.srcStage, transition.dstStage, 0, 0, nullptr, 0, nullptr, barriers.size(), barriers.data());
 
         for (uint32_t i = layer; i < lc + layer; i++)
         {

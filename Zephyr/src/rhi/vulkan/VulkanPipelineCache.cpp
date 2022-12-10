@@ -18,6 +18,10 @@ namespace Zephyr
         {
             vkDestroyPipeline(m_Driver->GetContext()->Device(), pipeline.second, nullptr);
         }
+        for (auto& pipeline : m_PipelineCacheCompute)
+        {
+            vkDestroyPipeline(m_Driver->GetContext()->Device(), pipeline.second, nullptr);
+        }
     }
 
     VulkanPipelineCache::~VulkanPipelineCache() {}
@@ -29,16 +33,28 @@ namespace Zephyr
     void
     VulkanPipelineCache::BindStorageBufferDynamic(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding, int offset)
     {
-        m_CurrentBinding.set.resize(set + 1);
-        m_CurrentBinding.set[set].resize(binding + 1);
+        if (m_CurrentBinding.set.size() < set + 1)
+        {
+            m_CurrentBinding.set.resize(set + 1);
+        }
+        if (m_CurrentBinding.set[set].size() < binding + 1)
+        {
+            m_CurrentBinding.set[set].resize(binding + 1);
+        }
 
         m_CurrentBinding.set[set][binding] = {DescriptorType::StorageBufferDynamic, buffer.GetID(), offset};
     }
 
     void VulkanPipelineCache::BindStorageBuffer(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding)
     {
-        m_CurrentBinding.set.resize(set + 1);
-        m_CurrentBinding.set[set].resize(binding + 1);
+        if (m_CurrentBinding.set.size() < set + 1)
+        {
+            m_CurrentBinding.set.resize(set + 1);
+        }
+        if (m_CurrentBinding.set[set].size() < binding + 1)
+        {
+            m_CurrentBinding.set[set].resize(binding + 1);
+        }
 
         m_CurrentBinding.set[set][binding] = {DescriptorType::StorageBuffer, buffer.GetID()};
     }
@@ -55,28 +71,20 @@ namespace Zephyr
             m_CurrentBinding.set[set].resize(binding + 1);
         }
 
-        // m_CurrentBinding.set[set][binding] = {BindingType::Sampler2D, texture.GetID()};
-
-        // m_CurrentBinding.set.resize(set + 1);
-        // m_CurrentBinding.set[set].resize(binding + 1);
-
         m_CurrentBinding.set[set][binding] = {DescriptorType::CombinedImageSampler, texture.GetID()};
     }
 
     void VulkanPipelineCache::BindSampler2DArray(Handle<RHITexture> texture, uint32_t set, uint32_t binding)
     {
 
-        // if (m_CurrentBinding.set.size() < set)
-        //{
-        //     m_CurrentBinding.set.resize(set);
-        // }
-        // if (m_CurrentBinding.set[set].size() < binding)
-        //{
-        //     m_CurrentBinding.set[set].resize(binding);
-        // }
-        // m_CurrentBinding.set[set][binding] = {BindingType::Sampler2DArray, texture.GetID()};
-        m_CurrentBinding.set.resize(set + 1);
-        m_CurrentBinding.set[set].resize(binding + 1);
+        if (m_CurrentBinding.set.size() < set + 1)
+        {
+            m_CurrentBinding.set.resize(set + 1);
+        }
+        if (m_CurrentBinding.set[set].size() < binding + 1)
+        {
+            m_CurrentBinding.set[set].resize(binding + 1);
+        }
 
         m_CurrentBinding.set[set][binding] = {DescriptorType::CombinedImageSampler, texture.GetID()};
     }
@@ -84,36 +92,27 @@ namespace Zephyr
     void VulkanPipelineCache::BindSamplerCubemap(Handle<RHITexture> texture, uint32_t set, uint32_t binding)
     {
 
-        // if (m_CurrentBinding.set.size() < set)
-        //{
-        //     m_CurrentBinding.set.resize(set);
-        // }
-        // if (m_CurrentBinding.set[set].size() < binding)
-        //{
-        //     m_CurrentBinding.set[set].resize(binding);
-        // }
-
-        // m_CurrentBinding.set[set][binding] = {BindingType::SamplerCubemap, texture.GetID()};
-        m_CurrentBinding.set.resize(set + 1);
-        m_CurrentBinding.set[set].resize(binding + 1);
-
+        if (m_CurrentBinding.set.size() < set + 1)
+        {
+            m_CurrentBinding.set.resize(set + 1);
+        }
+        if (m_CurrentBinding.set[set].size() < binding + 1)
+        {
+            m_CurrentBinding.set[set].resize(binding + 1);
+        }
         m_CurrentBinding.set[set][binding] = {DescriptorType::CombinedImageSampler, texture.GetID()};
     }
 
     void VulkanPipelineCache::BindStorageImage(Handle<RHITexture> texture, uint32_t set, uint32_t binding)
     {
-        // if (m_CurrentBinding.set.size() < set)
-        //{
-        //     m_CurrentBinding.set.resize(set);
-        // }
-        // if (m_CurrentBinding.set[set].size() < binding)
-        //{
-        //     m_CurrentBinding.set[set].resize(binding);
-        // }
-
-        // m_CurrentBinding.set[set][binding] = {BindingType::StorageImage, texture.GetID()};
-        m_CurrentBinding.set.resize(set + 1);
-        m_CurrentBinding.set[set].resize(binding + 1);
+        if (m_CurrentBinding.set.size() < set)
+        {
+            m_CurrentBinding.set.resize(set);
+        }
+        if (m_CurrentBinding.set[set].size() < binding)
+        {
+            m_CurrentBinding.set[set].resize(binding);
+        }
 
         m_CurrentBinding.set[set][binding] = {DescriptorType::StorageImage, texture.GetID()};
     }
@@ -129,16 +128,6 @@ namespace Zephyr
         pc.size   = size;
         pc.offset = offset;
         pc.stage  = stage;
-        // auto a = reinterpret_cast<float*>((uint8_t*)data + offset);
-        // std::cout << "========================\n";
-        // for (uint32_t i = 0; i < size / 4; i++)
-        //{
-        //     std::cout << "Push constant at " << i << " with value " << a[i] << std::endl;
-        // }
-        // std::cout << "========================\n";
-        // vkCmdPushConstants(
-        //     cb, m_BoundShader->GetPipelineLayout(), VulkanUtil::GetShaderStageFlags(stage), offset, size, data);
-        // m_BoundPushConstants = {offset, size, data, stage};
     }
 
     void VulkanPipelineCache::SetRaster(const RasterState& raster) { m_CurrentRasterState = raster; }
@@ -251,14 +240,6 @@ namespace Zephyr
                 }
             }
 
-            // std::cout << "Descriptor Cache Key layout: " << cacheKey.layout << std::endl;
-            // std::cout << "Descriptor Cache Key bindingCount: " << cacheKey.Bindings.size() << std::endl;
-            // for (auto& b : cacheKey.Bindings)
-            //{
-            //     std::cout << "Descriptor Cache Key binding: " << b.handle << std::endl;
-            // }
-            // std::cout << "======================================" << std::endl;
-
             auto iter = m_PipelineDescriptorCache.find(pipeline);
 
             if (iter == m_PipelineDescriptorCache.end())
@@ -267,12 +248,35 @@ namespace Zephyr
                 m_PipelineDescriptorCache[pipeline].resize(setCount);
             }
 
+            // this is primarily for different materials. for instance, a car model would have different
+            // albedo texture than a box model, so we need a descriptor set for each material
             auto& setCache = m_PipelineDescriptorCache[pipeline][set];
 
             auto setIter = setCache.find(cacheKey);
+
             if (setIter != setCache.end())
             {
                 assert(setIter->second.index < m_DescriptorSetCache.size());
+
+                auto& setCacheKey = setIter->first;
+
+                // do image layout transition if needed
+                for (auto& binding : setCacheKey.Bindings)
+                {
+                    //if (binding.type == DescriptorType::CombinedImageSampler)
+                    //{
+                    //    auto texture = m_Driver->GetTexture(binding.handle);
+
+                    //    texture->TransitionLayout(cb, 0, 0, ALL_LAYERS, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    //}
+                    // if (binding.type == DescriptorType::StorageImage && m_BoundShader->GetPipelineType() == PipelineTypeBits::Compute)
+                    //{
+                    //    auto texture = m_Driver->GetTexture(binding.handle);
+
+                    //    texture->TransitionLayout(cb, 0, 0, ALL_LAYERS, VK_IMAGE_LAYOUT_GENERAL);
+                    //}
+                }
+
                 auto descriptor = m_DescriptorSetCache[setIter->second.index];
                 if (!setIter->second.bound)
                 {
@@ -335,6 +339,11 @@ namespace Zephyr
                                                     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
                                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                             image.sampler     = m_Driver->GetSampler();
+                            write.pImageInfo  = &image;
+                            break;
+                        case DescriptorType::StorageImage:
+                            image.imageView   = m_Driver->GetTexture(bindingHandle)->GetMainView();
+                            image.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
                             write.pImageInfo  = &image;
                             break;
                         case DescriptorType::StorageBuffer:
@@ -402,19 +411,6 @@ namespace Zephyr
         }
 
         auto context = m_Driver->GetContext();
-
-        // right now vertex layout is hardcoded
-        // layout(location = 0) in vec3 inPosition;
-        // layout(location = 1) in vec3 inNormal;
-        // layout(location = 2) in vec3 inTangent;
-        // layout(location = 3) in vec3 inBitangent;
-        // layout(location = 4) in vec2 inTexCoord;
-
-        // layout(location = 0) in vec3    inPosition;
-        // layout(location = 1) in vec3    inNormal;
-        // layout(location = 2) in vec3    inTangent;
-        // layout(location = 3) in vec3    inBitangent;
-        // layout(location = 4) in vec2    inTexCoord;
 
         VkVertexInputBindingDescription vibd {};
         vibd.binding   = 0;
@@ -564,6 +560,7 @@ namespace Zephyr
         createInfo.sType        = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
         createInfo.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         createInfo.stage.module = shaderModule[0];
+        createInfo.stage.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
         createInfo.stage.pName  = "main";
         createInfo.layout       = m_BoundShader->GetPipelineLayout();
 

@@ -21,37 +21,37 @@ namespace Zephyr
             auto format                            = driver->GetResource<VulkanTexture>(attachments[i])->GetFormat();
             for (auto& color : desc.color)
             {
-                auto  c           = driver->GetResource<VulkanTexture>(attachments[i]);
+                auto c = driver->GetResource<VulkanTexture>(attachments[i]);
                 m_Colors.push_back(c);
-                auto& cd = attachmentDesc.emplace_back();
-                cd.format = format == TextureFormat::DEFAULT ?
-                    driver->GetSurfaceFormat() : 
-                    VulkanUtil::GetTextureFormat(c->GetFormat());
+                auto& cd          = attachmentDesc.emplace_back();
+                cd.format         = format == TextureFormat::DEFAULT ? driver->GetSurfaceFormat() :
+                                                                       VulkanUtil::GetTextureFormat(c->GetFormat());
                 cd.samples        = VK_SAMPLE_COUNT_1_BIT;
                 cd.loadOp         = color.clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
                 cd.storeOp        = color.save ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
                 cd.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
                 cd.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
                 cd.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-                // We assume that if the image is not used for final presentation, it should be used as a sampler input in another pipeline
-                // or this attachment wouldn't make sense
-                cd.finalLayout    = desc.present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                // We assume that if the image is not used for final presentation, it should be used as a sampler input
+                // in another pipeline or this attachment wouldn't make sense
+                cd.finalLayout =
+                    desc.present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
                 i++;
             }
             if (desc.useDepthStencil)
             {
                 m_DepthStencil = driver->GetResource<VulkanTexture>(attachments[i]);
-                auto& dsd = attachmentDesc.emplace_back();
-                dsd.format = VulkanUtil::GetTextureFormat(m_DepthStencil->GetFormat());
-                dsd.samples = VK_SAMPLE_COUNT_1_BIT;
-                dsd.loadOp  = desc.depthStencil.clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+                auto& dsd      = attachmentDesc.emplace_back();
+                dsd.format     = VulkanUtil::GetTextureFormat(m_DepthStencil->GetFormat());
+                dsd.samples    = VK_SAMPLE_COUNT_1_BIT;
+                dsd.loadOp     = desc.depthStencil.clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
                 dsd.storeOp = desc.depthStencil.save ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
                 dsd.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
                 dsd.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
                 dsd.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-                dsd.finalLayout    = desc.depthStencil.save ?
-                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+                dsd.finalLayout    = desc.depthStencil.save ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+                                                              VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
                 i++;
             }
 
@@ -187,19 +187,25 @@ namespace Zephyr
 
         vkCmdBeginRenderPass(cb, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
-    void VulkanRenderTarget::End(VkCommandBuffer cb) { 
+    void VulkanRenderTarget::End(VkCommandBuffer cb)
+    {
 
         for (uint32_t i = 0; i < m_Descriptor.color.size(); i++)
         {
-            auto& color = m_Colors[i];
+            auto colorLayout = m_Descriptor.present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            auto& color      = m_Colors[i];
             auto& descriptor = m_Descriptor.color[i];
-            color->SetLayout(0, descriptor.layer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            color->SetLayout(0, descriptor.layer, colorLayout);
         }
         if (m_Descriptor.useDepthStencil)
         {
+            auto dsLayout = m_Descriptor.depthStencil.save ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+                                     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             auto& descriptor = m_Descriptor.depthStencil;
-            m_DepthStencil->SetLayout(0, descriptor.layer, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            m_DepthStencil->SetLayout(0, descriptor.layer, dsLayout);
         }
 
-        vkCmdEndRenderPass(cb); }
+        vkCmdEndRenderPass(cb);
+    }
 } // namespace Zephyr

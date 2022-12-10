@@ -3,7 +3,6 @@
 #include "VulkanCommon.h"
 #include "VulkanContext.h"
 #include "VulkanPipelineCache.h"
-#include "VulkanRenderPassCache.h"
 #include "VulkanRenderTarget.h"
 #include "VulkanSwapchain.h"
 #include "pch.h"
@@ -118,7 +117,6 @@ namespace Zephyr
         // Do NOT change the order of declaration of the member below.
         VulkanContext         m_Context;
         VulkanPipelineCache   m_PipelineCache;
-        VulkanRenderPassCache m_RenderPasssCache;
 
         uint32_t m_CurrentFrameIndex = 0;
 

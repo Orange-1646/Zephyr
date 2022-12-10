@@ -209,7 +209,7 @@ namespace Zephyr
                     transition.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                     transition.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
                     transition.srcStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-                    transition.dstStage      = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                    transition.dstStage      = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
                     break;
 
                     // We support PRESENT as a target layout to allow blitting from the swap chain.

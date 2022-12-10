@@ -3,8 +3,8 @@
 layout(local_size_x = 16, local_size_y = 16) in;
 //layout(local_size_x = 256) in;
 
-layout(binding = 0, rgba8) uniform image2D result;
-layout(binding = 1) uniform sampler2D inputImage;
+layout(set = 0, binding = 0, rgba8) uniform image2D result;
+layout(set = 0, binding = 1) uniform sampler2D inputImage;
 
 float conv(in float[9] kernel, in float[9] data, in float denom, in float offset) 
 {
