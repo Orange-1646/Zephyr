@@ -168,8 +168,8 @@ namespace Zephyr
 
     void VulkanPipelineCache::Begin(VkCommandBuffer cb)
     {
-        assert(m_BoundRenderPass);
         assert(m_BoundShader);
+        assert(m_BoundShader->GetPipelineType() == PipelineTypeBits::Compute || m_BoundRenderPass);
         assert(m_Viewport.IsValid());
         assert(m_Scissor.IsValid());
         auto       renderPass = m_BoundRenderPass->GetRenderPass();
@@ -218,6 +218,14 @@ namespace Zephyr
         auto layouts                  = m_BoundShader->GetDescriptorLayouts();
 
         uint32_t setCount = pipelineLayoutDescriptor.layouts.size();
+
+        VkPipeline          pipeline  = m_BoundShader->GetPipelineType() == PipelineTypeBits::Graphics ?
+                                            m_CurrentBoundPipelineGraphics :
+                                            m_CurrentBoundPipelineCompute;
+        VkPipelineBindPoint bindPoint = m_BoundShader->GetPipelineType() == PipelineTypeBits::Graphics ?
+                                            VK_PIPELINE_BIND_POINT_GRAPHICS :
+                                            VK_PIPELINE_BIND_POINT_COMPUTE;
+
         for (uint32_t set = 0; set < setCount; set++)
         {
             auto setDescriptor = pipelineLayoutDescriptor.layouts[set];
@@ -251,15 +259,15 @@ namespace Zephyr
             // }
             // std::cout << "======================================" << std::endl;
 
-            auto iter = m_PipelineDescriptorCache.find(m_CurrentBoundPipelineGraphics);
+            auto iter = m_PipelineDescriptorCache.find(pipeline);
 
             if (iter == m_PipelineDescriptorCache.end())
             {
-                m_PipelineDescriptorCache.insert({m_CurrentBoundPipelineGraphics, {}});
-                m_PipelineDescriptorCache[m_CurrentBoundPipelineGraphics].resize(setCount);
+                m_PipelineDescriptorCache.insert({pipeline, {}});
+                m_PipelineDescriptorCache[pipeline].resize(setCount);
             }
 
-            auto& setCache = m_PipelineDescriptorCache[m_CurrentBoundPipelineGraphics][set];
+            auto& setCache = m_PipelineDescriptorCache[pipeline][set];
 
             auto setIter = setCache.find(cacheKey);
             if (setIter != setCache.end())
@@ -269,7 +277,7 @@ namespace Zephyr
                 if (!setIter->second.bound)
                 {
                     vkCmdBindDescriptorSets(cb,
-                                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            bindPoint,
                                             m_BoundShader->GetPipelineLayout(),
                                             set,
                                             1,
@@ -346,7 +354,7 @@ namespace Zephyr
                 vkUpdateDescriptorSets(m_Driver->GetContext()->Device(), writes.size(), writes.data(), 0, nullptr);
 
                 vkCmdBindDescriptorSets(cb,
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        bindPoint,
                                         m_BoundShader->GetPipelineLayout(),
                                         set,
                                         1,
@@ -355,7 +363,7 @@ namespace Zephyr
                                         offsets.data());
                 DescriptorState s {m_DescriptorSetCache.size(), true};
 
-                m_PipelineDescriptorCache[m_CurrentBoundPipelineGraphics][set].insert({cacheKey, s});
+                m_PipelineDescriptorCache[pipeline][set].insert({cacheKey, s});
                 m_DescriptorSetCache.push_back(descriptorSet);
             }
         }
@@ -541,6 +549,7 @@ namespace Zephyr
     VkPipeline VulkanPipelineCache::CreatePipelineCompute()
     {
         assert(m_BoundShader);
+        assert(m_BoundShader->GetPipelineType() == PipelineTypeBits::Compute);
 
         auto iter = m_PipelineCacheCompute.find(m_BoundShader);
         if (iter != m_PipelineCacheCompute.end())

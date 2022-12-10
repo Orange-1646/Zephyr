@@ -275,18 +275,19 @@ namespace Zephyr
             }
             assert(false);
         }
-        //static VkImageAspectFlags GetAspectMaskFromLayout(VkImageLayout layout)
+        // static VkImageAspectFlags GetAspectMaskFromLayout(VkImageLayout layout)
         //{
-        //    switch (layout)
-        //    {
-        //        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-        //            return VK_IMAGE_ASPECT_DEPTH_BIT;
-        //        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-        //            return VK
-        //    }
-        //}
+        //     switch (layout)
+        //     {
+        //         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+        //             return VK_IMAGE_ASPECT_DEPTH_BIT;
+        //         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+        //             return VK
+        //     }
+        // }
 
-        static VkPipelineStageFlags GetPipelineStageFlagsFromTextureUsage(TextureUsage usage) { 
+        static VkPipelineStageFlags GetPipelineStageFlagsFromTextureUsage(TextureUsage usage)
+        {
             VkPipelineStageFlags flag = 0;
             if (usage & TextureUsageBits::ColorAttachment)
             {
@@ -320,6 +321,16 @@ namespace Zephyr
                 flag |= VK_ACCESS_SHADER_WRITE_BIT;
             }
             return flag;
+        }
+
+        static VkSemaphore CreateSemaphore(VkDevice device)
+        {
+            VkSemaphore           sem;
+            VkSemaphoreCreateInfo createInfo {};
+            createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            VK_CHECK(vkCreateSemaphore(device, &createInfo, nullptr, &sem), "Semaphore Creation");
+
+            return sem;
         }
     };
 } // namespace Zephyr

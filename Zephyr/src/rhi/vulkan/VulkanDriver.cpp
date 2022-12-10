@@ -15,12 +15,12 @@ namespace Zephyr
 
         m_CommandPoolGraphics.resize(MAX_FRAME_IN_FLIGHT);
         m_CommandPoolCompute.resize(MAX_FRAME_IN_FLIGHT);
-        m_CommandBufferGraphics.resize(MAX_FRAME_IN_FLIGHT);
-        m_CommandBufferCompute.resize(MAX_FRAME_IN_FLIGHT);
         m_CommandBufferAvailableGraphics.resize(MAX_FRAME_IN_FLIGHT);
         m_CommandBufferInUseGraphics.resize(MAX_FRAME_IN_FLIGHT);
         m_CommandBufferAvailableCompute.resize(MAX_FRAME_IN_FLIGHT);
         m_CommandBufferInUseCompute.resize(MAX_FRAME_IN_FLIGHT);
+        m_SemaphoreAvailable.resize(MAX_FRAME_IN_FLIGHT);
+        m_SemaphoreInUse.resize(MAX_FRAME_IN_FLIGHT);
 
         for (uint32_t i = 0; i < MAX_FRAME_IN_FLIGHT; i++)
         {
@@ -35,18 +35,6 @@ namespace Zephyr
             createInfo.queueFamilyIndex = m_Context.QueueIndices().graphics;
             VK_CHECK(vkCreateCommandPool(m_Context.Device(), &createInfo, nullptr, &m_CommandPoolCompute[i]),
                      "Compute Command Pool Creation");
-            // allocate command buffers
-            VkCommandBufferAllocateInfo allocInfo {};
-            allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            allocInfo.commandBufferCount = 1;
-            allocInfo.commandPool        = m_CommandPoolGraphics[i];
-            allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            VK_CHECK(vkAllocateCommandBuffers(m_Context.Device(), &allocInfo, &m_CommandBufferGraphics[i]),
-                     "Graphics Command Buffer Allocation");
-
-            allocInfo.commandPool = m_CommandPoolCompute[i];
-            VK_CHECK(vkAllocateCommandBuffers(m_Context.Device(), &allocInfo, &m_CommandBufferCompute[i]),
-                     "Compute Command Buffer Allocation");
         }
     }
 
@@ -65,10 +53,33 @@ namespace Zephyr
 
         for (uint32_t i = 0; i < MAX_FRAME_IN_FLIGHT; i++)
         {
-            vkFreeCommandBuffers(device, m_CommandPoolGraphics[i], 1, &m_CommandBufferGraphics[i]);
+            for (auto& cb : m_CommandBufferInUseGraphics[i])
+            {
+                vkFreeCommandBuffers(device, m_CommandPoolGraphics[i], 1, &cb);
+            }
+            for (auto& cb : m_CommandBufferAvailableGraphics[i])
+            {
+                vkFreeCommandBuffers(device, m_CommandPoolGraphics[i], 1, &cb);
+            }
+            for (auto& cb : m_CommandBufferInUseCompute[i])
+            {
+                vkFreeCommandBuffers(device, m_CommandPoolGraphics[i], 1, &cb);
+            }
+            for (auto& cb : m_CommandBufferInUseCompute[i])
+            {
+                vkFreeCommandBuffers(device, m_CommandPoolGraphics[i], 1, &cb);
+            }
             vkDestroyCommandPool(device, m_CommandPoolGraphics[i], nullptr);
-            vkFreeCommandBuffers(device, m_CommandPoolCompute[i], 1, &m_CommandBufferCompute[i]);
             vkDestroyCommandPool(device, m_CommandPoolCompute[i], nullptr);
+
+            for (auto& sem : m_SemaphoreAvailable[i])
+            {
+                vkDestroySemaphore(device, sem, nullptr);
+            }
+            for (auto& sem : m_SemaphoreInUse[i])
+            {
+                vkDestroySemaphore(device, sem, nullptr);
+            }
         }
 
         vkDestroySampler(device, m_DefaultSampler, nullptr);
@@ -238,13 +249,34 @@ namespace Zephyr
         vkResetCommandPool(
             m_Context.Device(), m_CommandPoolCompute[m_CurrentFrameIndex], VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 
-        // begin command buffer
-        VkCommandBufferBeginInfo beginInfo {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        // at this point all graphics and comput command buffer for this frame should be done.
+        // move in-use command buffer to available command buffer
+        {
+            auto& cbGraphics = m_CommandBufferInUseGraphics[m_CurrentFrameIndex];
 
-        vkBeginCommandBuffer(m_CommandBufferGraphics[m_CurrentFrameIndex], &beginInfo);
-        vkBeginCommandBuffer(m_CommandBufferCompute[m_CurrentFrameIndex], &beginInfo);
+            for (auto& cb : cbGraphics)
+            {
+                m_CommandBufferAvailableGraphics[m_CurrentFrameIndex].push_back(cb);
+            }
+            cbGraphics.clear();
+
+            auto& cbCompute = m_CommandBufferInUseCompute[m_CurrentFrameIndex];
+
+            for (auto& cb : cbCompute)
+            {
+                m_CommandBufferAvailableCompute[m_CurrentFrameIndex].push_back(cb);
+            }
+            cbCompute.clear();
+        }
+
+        // same for semaphores
+        {
+            for (auto& sem : m_SemaphoreInUse[m_CurrentFrameIndex])
+            {
+                m_SemaphoreAvailable[m_CurrentFrameIndex].push_back(sem);
+            }
+            m_SemaphoreInUse[m_CurrentFrameIndex].clear();
+        }
 
         return true;
     }
@@ -255,33 +287,47 @@ namespace Zephyr
 
         m_BoundVertexBuffer = VK_NULL_HANDLE;
         m_BoundIndexBuffer  = VK_NULL_HANDLE;
+
+        SubmitJobGraphics(false, true);
+        assert(m_CurrentCommandBufferCompute == VK_NULL_HANDLE);
         // end command buffer and submit
-        vkEndCommandBuffer(m_CommandBufferGraphics[m_CurrentFrameIndex]);
-        vkEndCommandBuffer(m_CommandBufferCompute[m_CurrentFrameIndex]);
+        // vkEndCommandBuffer(m_CommandBufferGraphics[m_CurrentFrameIndex]);
+        // vkEndCommandBuffer(m_CommandBufferCompute[m_CurrentFrameIndex]);
 
-        auto                 sem1         = m_Swapchain->GetImageAcquireSemaphore();
-        auto                 sem2         = m_Swapchain->GetPresentReadySemaphore();
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        VkSubmitInfo         submitGraphics {};
-        submitGraphics.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitGraphics.waitSemaphoreCount   = 1;
-        submitGraphics.pWaitSemaphores      = &sem1;
-        submitGraphics.signalSemaphoreCount = 1;
-        submitGraphics.pSignalSemaphores    = &sem2;
-        submitGraphics.commandBufferCount   = 1;
-        submitGraphics.pCommandBuffers      = &m_CommandBufferGraphics[m_CurrentFrameIndex];
-        submitGraphics.pWaitDstStageMask    = waitStages;
+        // auto                 sem1         = m_Swapchain->GetImageAcquireSemaphore();
+        // auto                 sem2         = m_Swapchain->GetPresentReadySemaphore();
+        // VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        // VkSubmitInfo         submitGraphics {};
+        // submitGraphics.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        // submitGraphics.waitSemaphoreCount   = 1;
+        // submitGraphics.pWaitSemaphores      = &sem1;
+        // submitGraphics.signalSemaphoreCount = 1;
+        // submitGraphics.pSignalSemaphores    = &sem2;
+        // submitGraphics.commandBufferCount   = 1;
+        // submitGraphics.pCommandBuffers      = &m_CommandBufferGraphics[m_CurrentFrameIndex];
+        // submitGraphics.pWaitDstStageMask    = waitStages;
 
-        vkQueueSubmit(m_Context.m_GraphicsQueue, 1, &submitGraphics, m_Swapchain->GetFence());
+        // vkQueueSubmit(m_Context.m_GraphicsQueue, 1, &submitGraphics, m_Swapchain->GetFence());
         m_PipelineCache.Reset();
     }
 
-    void VulkanDriver::WaitAndPresent() { m_Swapchain->WaitAndPresent(); }
+    void VulkanDriver::WaitAndPresent()
+    {
+        vkDeviceWaitIdle(m_Context.Device());
+        m_Swapchain->WaitAndPresent();
+    }
 
     void VulkanDriver::DrawIndexed(uint32_t vertexOffset, uint32_t indexOffset, uint32_t indexCount)
     {
+        // if there are uncommited compute command, we assume we'll use it's result in
+        // our graphics task, so we have to commit the compute task and use a semaphore to link these tasks
 
-        auto cb = m_CommandBufferGraphics[m_CurrentFrameIndex];
+        if (m_CurrentCommandBufferCompute != VK_NULL_HANDLE)
+        {
+            SubmitJobCompute(true);
+        }
+
+        auto cb = PrepareCommandBufferGraphics();
 
         // this will create and bind pipeline
         m_PipelineCache.Begin(cb);
@@ -297,7 +343,13 @@ namespace Zephyr
 
     void VulkanDriver::Draw(uint32_t vertexCount, uint32_t vertexOffset)
     {
-        auto cb = m_CommandBufferGraphics[m_CurrentFrameIndex];
+        if (m_CurrentCommandBufferCompute != VK_NULL_HANDLE)
+        {
+            SubmitJobCompute(true);
+        }
+
+        auto cb = PrepareCommandBufferGraphics();
+
         // this will create and bind pipeline
         m_PipelineCache.Begin(cb);
         // this will bind all descriptors
@@ -306,14 +358,27 @@ namespace Zephyr
         vkCmdDraw(cb, vertexCount, 1, vertexOffset, 0);
     }
 
-    void VulkanDriver::Dispatch(uint32_t x, uint32_t y, uint32_t z) {}
+    void VulkanDriver::Dispatch(uint32_t x, uint32_t y, uint32_t z)
+    {
+
+        if (m_CurrentCommandBufferGraphics != VK_NULL_HANDLE)
+        {
+            SubmitJobGraphics(true, false);
+        }
+        auto cb = PrepareCommandBufferCompute();
+
+        m_PipelineCache.Begin(cb);
+        m_PipelineCache.BindDescriptor(cb);
+
+        vkCmdDispatch(cb, x, y, z);
+    }
 
     void VulkanDriver::BeginRenderPass(Handle<RHIRenderTarget> rt)
     {
         auto vrt = GetResource<VulkanRenderTarget>(rt);
         m_PipelineCache.BindRenderPass(vrt);
 
-        auto cb = m_CommandBufferGraphics[m_CurrentFrameIndex];
+        auto cb = PrepareCommandBufferGraphics();
 
         vrt->Begin(cb);
     }
@@ -323,7 +388,7 @@ namespace Zephyr
         auto vrt = GetResource<VulkanRenderTarget>(rt);
         // m_PipelineCache.Unbind();
 
-        auto cb = m_CommandBufferGraphics[m_CurrentFrameIndex];
+        auto cb = PrepareCommandBufferGraphics();
 
         vrt->End(cb);
     }
@@ -379,9 +444,11 @@ namespace Zephyr
 
     void VulkanDriver::BindConstantBuffer(uint32_t offset, uint32_t size, ShaderStage stage, void* data)
     {
-        m_PipelineCache.BindPushConstant(m_CommandBufferGraphics[m_CurrentFrameIndex], offset, size, stage, data);
+        auto cb = PrepareCommandBufferGraphics();
+        m_PipelineCache.BindPushConstant(cb, offset, size, stage, data);
     }
 
+    // TODO: this should be delayed too
     void VulkanDriver::BindVertexBuffer(Handle<RHIBuffer> buffer)
     {
         auto vkvb = GetResource<VulkanBuffer>(buffer)->GetBuffer();
@@ -390,11 +457,12 @@ namespace Zephyr
             return;
         }
         VkDeviceSize offset = 0;
-        auto         cb     = m_CommandBufferGraphics[m_CurrentFrameIndex];
+        auto         cb     = PrepareCommandBufferGraphics();
         vkCmdBindVertexBuffers(cb, 0, 1, &vkvb, &offset);
         m_BoundVertexBuffer = vkvb;
     }
 
+    // TODO: this should be delayed too
     void VulkanDriver::BindIndexBuffer(Handle<RHIBuffer> buffer)
     {
         auto vkib = GetResource<VulkanBuffer>(buffer)->GetBuffer();
@@ -403,7 +471,7 @@ namespace Zephyr
             return;
         }
         VkDeviceSize offset = 0;
-        auto         cb     = m_CommandBufferGraphics[m_CurrentFrameIndex];
+        auto         cb     = PrepareCommandBufferGraphics();
         vkCmdBindIndexBuffer(cb, vkib, 0, VK_INDEX_TYPE_UINT32);
         m_BoundIndexBuffer = vkib;
     }
@@ -412,7 +480,8 @@ namespace Zephyr
 
     void VulkanDriver::SetViewportScissor(const Viewport& viewport, const Scissor& scissor)
     {
-        m_PipelineCache.SetViewportScissor(m_CommandBufferGraphics[m_CurrentFrameIndex], viewport, scissor);
+        auto cb = PrepareCommandBufferGraphics();
+        m_PipelineCache.SetViewportScissor(cb, viewport, scissor);
     }
 
     void VulkanDriver::BeginGraphicsCommand() {}
@@ -422,27 +491,6 @@ namespace Zephyr
     void VulkanDriver::BeginComputeCommand() {}
 
     void VulkanDriver::EndComputeCommand() {}
-
-    void VulkanDriver::SetupBarrier(TextureUsage readsUsage)
-    {
-        auto            cb = m_CommandBufferGraphics[m_CurrentFrameIndex];
-        VkMemoryBarrier mb {};
-        mb.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        mb.srcAccessMask = VulkanUtil::GetAccessMaskFromTextureUsage(readsUsage);
-        mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-
-        vkCmdPipelineBarrier(cb,
-                             VulkanUtil::GetPipelineStageFlagsFromTextureUsage(readsUsage),
-                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_DEPENDENCY_BY_REGION_BIT,
-                             1,
-                             &mb,
-                             0,
-                             nullptr,
-                             0,
-                             nullptr);
-    }
 
     VkCommandBuffer VulkanDriver::BeginSingleTimeCommandBuffer() { return m_Context.BeginSingleTimeCommandBuffer(); }
 
@@ -488,6 +536,252 @@ namespace Zephyr
         VK_CHECK(vkCreateSampler(m_Context.Device(), &createInfo, nullptr, &m_DefaultSampler), "Sampler Creation");
 
         return m_DefaultSampler;
+    }
+
+    void VulkanDriver::SubmitJobCompute(bool synchronize)
+    {
+        VkCommandBuffer cb = m_CurrentCommandBufferCompute;
+        assert(cb != VK_NULL_HANDLE);
+        assert(m_CurrentSemaphoreCompute == VK_NULL_HANDLE);
+
+        vkEndCommandBuffer(cb);
+
+        if (synchronize)
+        {
+            SetupSemaphoreCompute();
+        }
+        VkPipelineStageFlags flags = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
+        // this submit consumes the current graphics semaphore
+        VkSubmitInfo submit {};
+        submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit.waitSemaphoreCount = m_CurrentSemaphoreGraphics != VK_NULL_HANDLE ? 1 : 0;
+        submit.pWaitSemaphores = m_CurrentSemaphoreGraphics != VK_NULL_HANDLE ? &m_CurrentSemaphoreGraphics : nullptr;
+        submit.signalSemaphoreCount = synchronize ? 1 : 0;
+        submit.pSignalSemaphores    = &m_CurrentSemaphoreCompute;
+        submit.pWaitDstStageMask    = &flags;
+        submit.commandBufferCount   = 1;
+        submit.pCommandBuffers      = &m_CurrentCommandBufferCompute;
+
+        VK_CHECK(vkQueueSubmit(m_Context.GetQueueCompute(), 1, &submit, VK_NULL_HANDLE), "Compute Queue Submit");
+
+        m_CurrentCommandBufferCompute = VK_NULL_HANDLE;
+        m_CurrentSemaphoreGraphics    = VK_NULL_HANDLE;
+    }
+
+    void VulkanDriver::SubmitJobGraphics(bool synchronize, bool present)
+    {
+        assert(!(synchronize & present));
+        VkCommandBuffer cb = m_CurrentCommandBufferGraphics;
+        assert(cb != VK_NULL_HANDLE);
+        assert(m_CurrentSemaphoreGraphics == VK_NULL_HANDLE);
+
+        vkEndCommandBuffer(cb);
+
+        if (synchronize)
+        {
+            SetupSemaphoreGraphics();
+        }
+
+        // we might use result from previous compute job on either vertex or fragment
+        VkPipelineStageFlags flags = 0;
+        auto                 sem1  = m_Swapchain->GetImageAcquireSemaphore();
+        // this submit consumes the current compute semaphore
+        VkSubmitInfo submit {};
+        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        std::vector<VkSemaphore> semsWait;
+        std::vector<VkSemaphore> semsSignal;
+
+        if (present)
+        {
+            semsWait.push_back(m_Swapchain->GetImageAcquireSemaphore());
+            flags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+            semsSignal.push_back(m_Swapchain->GetPresentReadySemaphore());
+        }
+        if (m_CurrentSemaphoreCompute != VK_NULL_HANDLE)
+        {
+            semsWait.push_back(m_CurrentSemaphoreCompute);
+            flags |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
+
+        if (synchronize)
+        {
+            semsSignal.push_back(m_CurrentSemaphoreGraphics);
+        }
+
+        submit.waitSemaphoreCount   = semsWait.size();
+        submit.pWaitSemaphores      = semsWait.data();
+        submit.pWaitDstStageMask    = &flags;
+        submit.signalSemaphoreCount = semsSignal.size();
+        submit.pSignalSemaphores    = semsSignal.data();
+        submit.commandBufferCount   = 1;
+        submit.pCommandBuffers      = &m_CurrentCommandBufferGraphics;
+
+        VK_CHECK(
+            vkQueueSubmit(m_Context.GetQueueGraphics(), 1, &submit, present ? m_Swapchain->GetFence() : VK_NULL_HANDLE),
+            "Graphics Queue Submit");
+
+        m_CurrentCommandBufferGraphics = VK_NULL_HANDLE;
+        m_CurrentSemaphoreCompute      = VK_NULL_HANDLE;
+    }
+
+    void VulkanDriver::SetupSemaphoreCompute()
+    {
+        assert(m_CurrentSemaphoreCompute == VK_NULL_HANDLE);
+
+        // create a semaphore if there's no available ones
+        if (m_SemaphoreAvailable.size() == 0)
+        {
+            auto sem                  = VulkanUtil::CreateSemaphore(m_Context.Device());
+            m_CurrentSemaphoreCompute = sem;
+            m_SemaphoreInUse[m_CurrentFrameIndex].push_back(sem);
+        }
+        else
+        {
+            auto sem = m_SemaphoreAvailable[m_CurrentFrameIndex].back();
+            m_SemaphoreAvailable.pop_back();
+            m_CurrentSemaphoreCompute = sem;
+            m_SemaphoreInUse[m_CurrentFrameIndex].push_back(sem);
+        }
+    }
+
+    void VulkanDriver::SetupSemaphoreGraphics()
+    {
+        assert(m_CurrentSemaphoreGraphics == VK_NULL_HANDLE);
+
+        // create a semaphore if there's no available ones
+        if (m_SemaphoreAvailable.size() == 0)
+        {
+            auto sem                   = VulkanUtil::CreateSemaphore(m_Context.Device());
+            m_CurrentSemaphoreGraphics = sem;
+            m_SemaphoreInUse[m_CurrentFrameIndex].push_back(sem);
+        }
+        else
+        {
+            auto sem = m_SemaphoreAvailable[m_CurrentFrameIndex].back();
+            m_SemaphoreAvailable[m_CurrentFrameIndex].pop_back();
+            m_CurrentSemaphoreGraphics = sem;
+            m_SemaphoreInUse[m_CurrentFrameIndex].push_back(sem);
+        }
+    }
+
+    VkCommandBuffer VulkanDriver::PrepareCommandBufferGraphics()
+    {
+        // if we already have one, just return it
+        if (m_CurrentCommandBufferGraphics != VK_NULL_HANDLE)
+        {
+            return m_CurrentCommandBufferGraphics;
+        }
+
+        // if there are available command buffer, use it
+        if (m_CommandBufferAvailableGraphics[m_CurrentFrameIndex].size() != 0)
+        {
+            m_CurrentCommandBufferGraphics = m_CommandBufferAvailableGraphics[m_CurrentFrameIndex].back();
+            m_CommandBufferAvailableGraphics[m_CurrentFrameIndex].pop_back();
+            m_CommandBufferInUseGraphics[m_CurrentFrameIndex].push_back(m_CurrentCommandBufferGraphics);
+
+            VkCommandBufferBeginInfo begin {};
+            begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            VK_CHECK(vkBeginCommandBuffer(m_CurrentCommandBufferGraphics, &begin), "Begin Graphics Command Buffer");
+
+            return m_CurrentCommandBufferGraphics;
+        }
+
+        // else we create a new command buffer
+        VkCommandBuffer cb;
+
+        VkCommandBufferAllocateInfo allocInfo {};
+        allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool        = m_CommandPoolGraphics[m_CurrentFrameIndex];
+        allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1;
+
+        VK_CHECK(vkAllocateCommandBuffers(m_Context.Device(), &allocInfo, &cb), "Graphics Command Buffer Allocation");
+
+        m_CurrentCommandBufferGraphics = cb;
+
+        m_CommandBufferInUseGraphics[m_CurrentFrameIndex].push_back(cb);
+
+        VkCommandBufferBeginInfo begin {};
+        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        VK_CHECK(vkBeginCommandBuffer(m_CurrentCommandBufferGraphics, &begin), "Begin Graphics Command Buffer");
+
+        return m_CurrentCommandBufferGraphics;
+    }
+
+    VkCommandBuffer VulkanDriver::PrepareCommandBufferCompute()
+    {
+        // if we already have one, just return it
+        if (m_CurrentCommandBufferCompute != VK_NULL_HANDLE)
+        {
+            return m_CurrentCommandBufferCompute;
+        }
+
+        // if there are available command buffer, use it
+        if (m_CommandBufferAvailableCompute[m_CurrentFrameIndex].size() != 0)
+        {
+            m_CurrentCommandBufferCompute = m_CommandBufferAvailableCompute[m_CurrentFrameIndex].back();
+            m_CommandBufferAvailableCompute[m_CurrentFrameIndex].pop_back();
+            m_CommandBufferInUseCompute[m_CurrentFrameIndex].push_back(m_CurrentCommandBufferCompute);
+
+            VkCommandBufferBeginInfo begin {};
+            begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            VK_CHECK(vkBeginCommandBuffer(m_CurrentCommandBufferCompute, &begin), "Begin Graphics Command Buffer");
+
+            return m_CurrentCommandBufferCompute;
+        }
+
+        // else we create a new command buffer
+        VkCommandBuffer cb;
+
+        VkCommandBufferAllocateInfo allocInfo {};
+        allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool        = m_CommandPoolCompute[m_CurrentFrameIndex];
+        allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1;
+
+        VK_CHECK(vkAllocateCommandBuffers(m_Context.Device(), &allocInfo, &cb), "Graphics Command Buffer Allocation");
+
+        m_CurrentCommandBufferCompute = cb;
+
+        m_CommandBufferInUseCompute[m_CurrentFrameIndex].push_back(cb);
+
+        VkCommandBufferBeginInfo begin {};
+        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        VK_CHECK(vkBeginCommandBuffer(m_CurrentCommandBufferCompute, &begin), "Begin Graphics Command Buffer");
+
+        return m_CurrentCommandBufferCompute;
+    }
+
+    void VulkanDriver::SetupBarrier(TextureUsage readsUsage)
+    {
+        auto            cb = PrepareCommandBufferGraphics();
+        VkMemoryBarrier mb {};
+        mb.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        mb.srcAccessMask = VulkanUtil::GetAccessMaskFromTextureUsage(readsUsage);
+        mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        vkCmdPipelineBarrier(cb,
+                             VulkanUtil::GetPipelineStageFlagsFromTextureUsage(readsUsage),
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_DEPENDENCY_BY_REGION_BIT,
+                             1,
+                             &mb,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr);
     }
 
 } // namespace Zephyr

@@ -100,6 +100,19 @@ namespace Zephyr
         inline VkFormat GetSurfaceFormat() { return m_Swapchain->GetSurfaceFormat(); }
 
     private:
+        // synchronize indicates if there are graphics job after us and we need to provide a semaphore to sync with it
+        void SubmitJobCompute(bool synchronize);
+        // synchronize indicates if there are compute job after us and we need to provide a semaphore to sync with it
+        void SubmitJobGraphics(bool synchronize, bool present);
+
+        VkCommandBuffer PrepareCommandBufferGraphics();
+        VkCommandBuffer PrepareCommandBufferCompute();
+
+        void SetupSemaphoreCompute();
+        void SetupSemaphoreGraphics();
+
+
+    private:
         Window*          m_Window;
         VulkanSwapchain* m_Swapchain;
         // Do NOT change the order of declaration of the member below.
@@ -115,8 +128,23 @@ namespace Zephyr
         VkCommandBuffer              m_CurrentGraphicsCB = VK_NULL_HANDLE;
         VkCommandBuffer              m_CurrentComputeCB  = VK_NULL_HANDLE;
         std::vector<VkCommandPool>   m_CommandPoolGraphics;
+        std::vector<std::vector<VkCommandBuffer>> m_CommandBufferAvailableGraphics;
+        std::vector<std::vector<VkCommandBuffer>> m_CommandBufferInUseGraphics;
+        VkCommandBuffer                           m_CurrentCommandBufferGraphics = VK_NULL_HANDLE;
+
         std::vector<VkCommandBuffer> m_CommandBufferGraphics;
-        std::vector<VkCommandPool>   m_CommandPoolCompute;
+
+        std::vector<VkCommandPool>                m_CommandPoolCompute;
+        std::vector<std::vector<VkCommandBuffer>> m_CommandBufferAvailableCompute;
+        std::vector<std::vector<VkCommandBuffer>> m_CommandBufferInUseCompute;
+        VkCommandBuffer                           m_CurrentCommandBufferCompute = VK_NULL_HANDLE;
+
+        std::vector<std::vector<VkSemaphore>> m_SemaphoreAvailable;
+        std::vector<std::vector<VkSemaphore>> m_SemaphoreInUse;
+
+        VkSemaphore m_CurrentSemaphoreGraphics = VK_NULL_HANDLE;
+        VkSemaphore m_CurrentSemaphoreCompute = VK_NULL_HANDLE;
+
         std::vector<VkCommandBuffer> m_CommandBufferCompute;
 
         VkSampler m_DefaultSampler = VK_NULL_HANDLE;

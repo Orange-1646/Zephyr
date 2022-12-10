@@ -22,6 +22,8 @@ namespace Zephyr
         inline VkDevice           Device() const { return m_Device; }
         inline VkPhysicalDevice   PhysicalDevice() const { return m_PhysicalDevice; }
         inline VkDescriptorPool   GetDescriptorPool() const { return m_GlobalDescriptorPool; }
+        inline VkQueue            GetQueueGraphics() const { return m_GraphicsQueue; }
+        inline VkQueue            GetQueueCompute() const { return m_ComputeQueue; }
     private:
         void CreateInstance();
         void PickPhysicalDevice();
