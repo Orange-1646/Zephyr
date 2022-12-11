@@ -267,8 +267,11 @@ namespace Zephyr
                 {
                     materialInstance->SetTexture("emissionMap", m_ResourceManager->GetBlackTexture());
                 }
+                m->m_Materials.push_back(materialInstance);
             }
         }
+
+        return m;
     }
 
     void ModelLoader::TraverseNodes(Mesh*                                               mesh,

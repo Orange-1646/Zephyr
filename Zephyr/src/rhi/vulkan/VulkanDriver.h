@@ -62,11 +62,6 @@ namespace Zephyr
         void SetRasterState(const RasterState& raster) override;
         void SetViewportScissor(const Viewport& viewport, const Scissor& scissor);
 
-        void BeginGraphicsCommand() override;
-        void EndGraphicsCommand() override;
-        void BeginComputeCommand() override;
-        void EndComputeCommand() override;
-
         void SetupBarrier(Handle<RHITexture> texture, TextureUsage nextUsage) override;
 
         // for internal uses

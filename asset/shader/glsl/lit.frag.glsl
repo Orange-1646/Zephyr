@@ -237,6 +237,7 @@ void main() {
 	roughness = clamp(roughness, .05, 1.);
 	// normal
 	vec3 n = normalize( normalize(texture(normalMap, uv) * 2. - 1.).xyz).xyz * materialUniforms.UseNormalMap + (1. - materialUniforms.UseNormalMap) * normal;
+
 	// inverse light
 	vec3 l = normalize(-globalRenderData.directionalLightDirection);
 	// view/eye vector
@@ -323,6 +324,10 @@ void main() {
 	if(texUV.x > 1. || texUV.x < 0. || texUV.y > 1. || texUV.y < 0.) {
 		color = vec4(1.);
 	}
+
+//	if(color.x > 1.) {
+//		color = vec4(1., 0., 0., 1.);
+//	}
 //
 //	switch(cascadeLevel) {
 //		case 0:

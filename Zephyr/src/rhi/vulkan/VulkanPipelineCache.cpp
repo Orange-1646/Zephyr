@@ -260,23 +260,6 @@ namespace Zephyr
 
                 auto& setCacheKey = setIter->first;
 
-                // do image layout transition if needed
-                for (auto& binding : setCacheKey.Bindings)
-                {
-                    //if (binding.type == DescriptorType::CombinedImageSampler)
-                    //{
-                    //    auto texture = m_Driver->GetTexture(binding.handle);
-
-                    //    texture->TransitionLayout(cb, 0, 0, ALL_LAYERS, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                    //}
-                    // if (binding.type == DescriptorType::StorageImage && m_BoundShader->GetPipelineType() == PipelineTypeBits::Compute)
-                    //{
-                    //    auto texture = m_Driver->GetTexture(binding.handle);
-
-                    //    texture->TransitionLayout(cb, 0, 0, ALL_LAYERS, VK_IMAGE_LAYOUT_GENERAL);
-                    //}
-                }
-
                 auto descriptor = m_DescriptorSetCache[setIter->second.index];
                 if (!setIter->second.bound)
                 {

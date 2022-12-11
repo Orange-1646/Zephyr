@@ -69,13 +69,7 @@ namespace Zephyr
     }
     void PassNode::Execute(FrameGraph* graph)
     {
-        if (m_Pass->GetName() == "color pass")
-        {
-            int a = 0;
-        }
         // add pipeline barrier
-        // we combine all read usages and determin what stage should we wait
-        TextureUsage previousUsage = 0;
         for (auto& read : m_Reads)
         {
             auto r = static_cast<VirtualResource*>(read.resource);
@@ -85,10 +79,6 @@ namespace Zephyr
         {
             auto r = static_cast<VirtualResource*>(write.resource);
             m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), write.usage);
-        }
-        for (auto& write : m_Writes)
-        {
-
         }
         // execute
         m_Pass->Execute(graph, m_RenderTarget);

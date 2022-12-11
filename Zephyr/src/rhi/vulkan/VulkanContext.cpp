@@ -68,7 +68,7 @@ namespace Zephyr
 
         VK_CHECK(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, fence), "One Time Command Buffer Submission");
 
-        VK_CHECK(vkWaitForFences(m_Device, 1, &fence, VK_TRUE, 10000000), "Failed at waiting for cb fence");
+        VK_CHECK(vkWaitForFences(m_Device, 1, &fence, VK_TRUE, UINT64_MAX), "Failed at waiting for cb fence");
 
         vkDestroyFence(m_Device, fence, nullptr);
 

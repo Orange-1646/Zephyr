@@ -123,7 +123,7 @@ namespace Zephyr
         shaderDesc.fragment   = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/resolve.frag.spv"));
         shaderDesc.vertexType = VertexType::None;
 
-        auto resolveShader       = new ShaderSet(shaderDesc, driver);
+        auto resolveShader = new ShaderSet(shaderDesc, driver);
         m_ShaderSets.insert({"resolve", resolveShader});
     }
 
@@ -311,7 +311,10 @@ namespace Zephyr
     Mesh* ResourceManager::CreateMesh(const std::string& path)
     {
         // TODO: better hierachy
-        auto mesh = m_ModelLoader.LoadModel(path);
+        auto mesh = m_ModelLoader.LoadModel(Path::GetFilePath(path));
+
+        mesh->InitResource(m_Engine->GetDriver());
+
         m_Meshes.push_back(mesh);
 
         return mesh;

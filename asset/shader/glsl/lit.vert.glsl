@@ -59,5 +59,5 @@ void main() {
 	tbn = mat3(worldMatrix.worldMatrix) * mat3(t, b, n);
 
 	outNormal =  mat3(worldMatrix.worldMatrix) * inNormal;
-	outTexCoord = inTexCoord;
+	outTexCoord = vec2(inTexCoord.x, inTexCoord.y);
 }

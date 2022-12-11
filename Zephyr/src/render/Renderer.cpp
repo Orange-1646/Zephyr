@@ -294,7 +294,7 @@ namespace Zephyr
                 colorDesc.depth     = 1;
                 colorDesc.levels    = 1;
                 colorDesc.samples   = 1;
-                colorDesc.format    = TextureFormat::RGBA8_UNORM;
+                colorDesc.format    = TextureFormat::RGBA16_SRGB;
                 colorDesc.usage     = TextureUsageBits::ColorAttachment | TextureUsageBits::Sampled;
                 colorDesc.sampler   = SamplerType::Sampler2D;
                 colorDesc.pipelines = PipelineTypeBits::Graphics | PipelineTypeBits::Compute;
@@ -331,11 +331,11 @@ namespace Zephyr
             },
             [&](FrameGraph* fg, ColorPassData* m_Data, PassRenderTarget rt) {
                 auto dimension = m_Engine->GetWindowDimension();
-                m_Driver->SetViewportScissor({0, 0, (int)dimension.first, (int)dimension.second},
+                m_Driver->SetViewportScissor({0, dimension.second, (int)dimension.first, -(int)dimension.second},
                                              {0, 0, dimension.first, dimension.second});
                 // bind render target
                 m_Driver->BeginRenderPass(rt.rt);
-                m_Driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true});
+                m_Driver->SetRasterState({Culling::BackFace, FrontFace::CounterClockwise, true, true});
                 auto handle = m_GlobalRingBuffer->GetHandle();
                 m_Driver->BindBuffer(m_GlobalRingBuffer->GetHandle(), 0, 0, BufferUsageBits::StorageDynamic);
                 auto shadowMap = static_cast<VirtualResource*>(fg->GetResource(m_Data->shadow))->GetRHITexture();
@@ -357,7 +357,7 @@ namespace Zephyr
                 m_Driver->BindTexture(m_Engine->GetDefaultSkybox()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
                 auto skyboxMesh = m_Engine->GetSkyboxMesh();
                 auto meshlet    = skyboxMesh->GetSubmeshes()[0];
-                m_Driver->SetRasterState({Culling::BackFace, FrontFace::CounterClockwise, true, true});
+                m_Driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true});
                 m_Driver->BindVertexBuffer(skyboxMesh->GetVertexBuffer());
                 m_Driver->BindIndexBuffer(skyboxMesh->GetIndexBuffer());
                 m_Driver->DrawIndexed(meshlet.baseVertex, meshlet.baseIndex, meshlet.indexCount);
@@ -408,7 +408,7 @@ namespace Zephyr
                 auto dimension  = engine->GetWindowDimension();
                 auto colorInput = static_cast<VirtualResource*>(fg->GetResource(m_Data->input))->GetRHITexture();
 
-                driver->SetViewportScissor({0, dimension.second, (int)dimension.first, -(int)dimension.second},
+                driver->SetViewportScissor({0, 0, (int)dimension.first, (int)dimension.second},
                                            {0, 0, dimension.first, dimension.second});
                 driver->SetRasterState({Culling::None, FrontFace::CounterClockwise, false, false});
                 driver->BindTexture(colorInput, 0, 0, TextureUsageBits::Sampled);
@@ -440,7 +440,7 @@ namespace Zephyr
                 desc.depth     = 1;
                 desc.levels    = 1;
                 desc.samples   = 1;
-                desc.format    = TextureFormat::RGBA8_UNORM;
+                desc.format    = TextureFormat::RGBA16_SRGB;
                 desc.usage     = TextureUsageBits::Storage | TextureUsageBits::Sampled;
                 desc.sampler   = SamplerType::Sampler2D;
                 desc.pipelines = PipelineTypeBits::Graphics | PipelineTypeBits::Compute;

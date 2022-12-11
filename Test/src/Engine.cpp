@@ -23,6 +23,8 @@ int main()
     BoxMeshDescription d {5, 5, 5};
     auto               box = engine->CreateMesh(d);
 
+    //auto mask = engine->CreateMesh("asset/model/venice_mask/scene.gltf");
+
     auto material = engine->CreateMaterial(ShadingModel::Lit);
     material->SetConstantBlock<glm::vec3>("albedo", {.2, 1., 1.});
     box->SetMaterials({material});
@@ -32,8 +34,8 @@ int main()
 
         auto e2                          = scene->CreateEntity();
         auto lightComponent2             = scene->AddComponent<DirectionalLightComponent>(e2);
-        lightComponent2->light.direction = {glm::sin(glm::radians(27.)), -.5f, glm::cos(glm::radians(27.))};
-        lightComponent2->light.radiance  = {7., 7., 7.};
+        lightComponent2->light.direction = {glm::sin(-glm::radians(27.)), -.5f, -glm::cos(glm::radians(27.))};
+        lightComponent2->light.radiance  = {200., 200., 200.};
 
         auto e3               = scene->CreateEntity();
         auto cameraComponent3 = scene->AddComponent<MainCameraComponent>(e3);
@@ -48,6 +50,13 @@ int main()
         auto floor = scene->CreateEntity();
         auto floorMesh = scene->AddComponent<MeshComponent>(floor);
         floorMesh->mesh    = fm;
+
+        // mask
+        //auto msk = scene->CreateEntity();
+        //auto mskMesh = scene->AddComponent<MeshComponent>(msk);
+        //mskMesh->mesh = mask;
+        //auto mskTrans = scene->AddComponent<TransformComponent>(msk);
+        //mskTrans->transform = glm::scale(transform, {300., 300., 300.});
 
         // boxes
         for (int i = -3; i < 3; i++)

@@ -63,11 +63,6 @@ namespace Zephyr
         virtual void SetRasterState(const RasterState& raster)                                                   = 0;
         virtual void SetViewportScissor(const Viewport& viewport, const Scissor& scissor)                        = 0;
 
-        virtual void BeginGraphicsCommand() = 0;
-        virtual void EndGraphicsCommand()   = 0;
-        virtual void BeginComputeCommand()  = 0;
-        virtual void EndComputeCommand()    = 0;
-
         // this is for the image layout transition between passes
         virtual void SetupBarrier(Handle<RHITexture> texture, TextureUsage nextUsage) = 0;
 

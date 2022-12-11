@@ -44,5 +44,8 @@ void main()
 									
 	vec4 res = vec4(vec3(conv(kernel, imageData.avg, 0.1, 0.0)), 1.0);
 
-	imageStore(result, ivec2(gl_GlobalInvocationID.xy), res);
+//	imageStore(result, ivec2(gl_GlobalInvocationID.xy), res);
+	vec2 uv = vec2(float(gl_GlobalInvocationID.x)/rtSize.x, float(gl_GlobalInvocationID.y)/rtSize.y);
+
+	imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(texture(inputImage, uv).rgb, 1.));
 }
