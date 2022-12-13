@@ -41,7 +41,7 @@ namespace Zephyr
 
     private:
         Driver*                                                                                m_Driver;
-        std::unordered_map<TextureDescription, Handle<RHITexture>, hash_fn_td>                 m_TextureCache;
+        std::unordered_multimap<TextureDescription, Handle<RHITexture>, hash_fn_td>                 m_TextureCache;
         std::unordered_map<Handle<RHITexture>, TextureDescription, hash_fn_handle<RHITexture>> m_InUseTexture;
         std::unordered_map<std::pair<RenderTargetDescription, std::vector<Handle<RHITexture>>>,
                            Handle<RHIRenderTarget>,

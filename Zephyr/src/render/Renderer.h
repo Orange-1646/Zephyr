@@ -68,8 +68,10 @@ namespace Zephyr
 
         void DrawShadowMap(FrameGraph& fg);
         void DrawForward(FrameGraph& fg);
+        void DrawDeferred(FrameGraph& fg);
         void DrawResolve(FrameGraph& fg);
         void DispatchPostProcessingCompute(FrameGraph& fg);
+        void DispatchBloomCompute(FrameGraph& fg);
 
     private:
         Engine*         m_Engine;
@@ -85,5 +87,6 @@ namespace Zephyr
 
         float    m_CascadeTransitionScale = .3;
         uint32_t m_ShadowMapResolution    = 2048;
+        uint32_t m_BloomDownsampleCount   = 7;
     };
 } // namespace Zephyr

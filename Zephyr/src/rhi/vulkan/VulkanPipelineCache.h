@@ -23,10 +23,13 @@ namespace Zephyr
     {
         DescriptorType type;
         HandleID       handle;
+        // for texture views
+        ViewRange      range = ViewRange::INVALID_RANGE;
+        // for dynamic buffer
         int            offset = -1;
 
         // note that offsets doens't get included here
-        bool operator==(const BindingDescriptor& rhs) const { return rhs.type == type && rhs.handle == handle; }
+        bool operator==(const BindingDescriptor& rhs) const { return rhs.type == type && rhs.handle == handle && range == rhs.range; }
     };
 
     struct hash_fn_bd
@@ -139,10 +142,10 @@ namespace Zephyr
         void BindRenderPass(VulkanRenderTarget* rt);
         void BindStorageBufferDynamic(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding, int offset);
         void BindStorageBuffer(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding);
-        void BindSampler2D(Handle<RHITexture> texture, uint32_t set, uint32_t binding);
+        void BindSampler2D(Handle<RHITexture> texture, const ViewRange& range, uint32_t set, uint32_t binding);
         void BindSampler2DArray(Handle<RHITexture> texture, uint32_t set, uint32_t binding);
         void BindSamplerCubemap(Handle<RHITexture> texture, uint32_t set, uint32_t binding);
-        void BindStorageImage(Handle<RHITexture> texture, uint32_t set, uint32_t binding);
+        void BindStorageImage(Handle<RHITexture> texture, const ViewRange& range, uint32_t set, uint32_t binding);
         void BindPushConstant(VkCommandBuffer cb, uint32_t offset, uint32_t size, ShaderStage stage, void* data);
         void SetRaster(const RasterState& raster);
         void SetViewportScissor(VkCommandBuffer cb, const Viewport& viewport, const Scissor& scissor);

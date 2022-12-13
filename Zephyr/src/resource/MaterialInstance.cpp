@@ -9,7 +9,7 @@ namespace Zephyr
     void MaterialInstance::Bind(Driver* driver)
     {
 
-        driver->BindShaderSet(GetShaderHandle());
+        //driver->BindShaderSet(GetShaderHandle());
         for (auto& texture : m_TextureNames)
         {
             auto [index, set, binding, usage] = texture.second;

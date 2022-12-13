@@ -31,18 +31,6 @@ layout(push_constant, std140) uniform WorldMatrix
 	mat4 worldMatrix;
 } worldMatrix;
 
-const vec3 vertices[3] = {
-{0., -1., 0.},
-{-1., 1., 0.},
-{1., 1., 0.},
-};
-
-const mat4 biasMat = mat4( 
-	0.5, 0.0, 0.0, 0.0,
-	0.0, 0.5, 0.0, 0.0,
-	0.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.0, 1.0 );
-
 void main() {
 
 	gl_Position = globalRenderData.vp * worldMatrix.worldMatrix * vec4(inPosition, 1.);

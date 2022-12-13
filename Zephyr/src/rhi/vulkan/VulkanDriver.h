@@ -55,6 +55,11 @@ namespace Zephyr
         void EndRenderPass(Handle<RHIRenderTarget> rt) override;
         void BindShaderSet(Handle<RHIShaderSet> shader) override;
         void BindBuffer(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding, BufferUsage usage) override;
+        void BindTexture(Handle<RHITexture> texture,
+                         const ViewRange&   range,
+                         uint32_t           set,
+                         uint32_t           binding,
+                         TextureUsage       usage) override;
         void BindTexture(Handle<RHITexture> texture, uint32_t set, uint32_t binding, TextureUsage usage) override;
         void BindConstantBuffer(uint32_t offset, uint32_t size, ShaderStage stage, void* data) override;
         void BindVertexBuffer(Handle<RHIBuffer> buffer) override;
@@ -62,7 +67,7 @@ namespace Zephyr
         void SetRasterState(const RasterState& raster) override;
         void SetViewportScissor(const Viewport& viewport, const Scissor& scissor);
 
-        void SetupBarrier(Handle<RHITexture> texture, TextureUsage nextUsage) override;
+        void SetupBarrier(Handle<RHITexture> texture, const ViewRange& range, TextureUsage nextUsage, PipelineType pipeline) override;
 
         // for internal uses
         VkCommandBuffer BeginSingleTimeCommandBuffer();
@@ -143,5 +148,7 @@ namespace Zephyr
 
         VkBuffer m_BoundVertexBuffer = VK_NULL_HANDLE;
         VkBuffer m_BoundIndexBuffer  = VK_NULL_HANDLE;
+
+        std::string m_DebugMarkerName;
     };
 } // namespace Zephyr

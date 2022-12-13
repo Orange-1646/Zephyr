@@ -46,6 +46,7 @@ void main()
 
 //	imageStore(result, ivec2(gl_GlobalInvocationID.xy), res);
 	vec2 uv = vec2(float(gl_GlobalInvocationID.x)/rtSize.x, float(gl_GlobalInvocationID.y)/rtSize.y);
+	uv += 1./imageSize(result) * .5;
 
 	imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(texture(inputImage, uv).rgb, 1.));
 }

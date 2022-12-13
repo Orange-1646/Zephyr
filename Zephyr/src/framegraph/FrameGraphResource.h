@@ -54,8 +54,10 @@ namespace Zephyr
 
         struct SubresourceDescriptor
         {
-            uint32_t layer;
-            uint32_t level;
+            uint32_t baseLayer;
+            uint32_t layerCount;
+            uint32_t baseLevel;
+            uint32_t levelCount;
         };
 
         FrameGraphTexture(bool external = false) : m_External(external) {};

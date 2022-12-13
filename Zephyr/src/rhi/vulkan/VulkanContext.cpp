@@ -88,7 +88,8 @@ namespace Zephyr
         // 0: surface extension for surface and swapchain
         // 1: win32 system surface platform extension
         // 3: debug utils
-        std::vector<const char*> extensions = {VK_KHR_SURFACE_EXTENSION_NAME, "VK_KHR_win32_surface", VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+        std::vector<const char*> extensions = {
+            VK_KHR_SURFACE_EXTENSION_NAME, "VK_KHR_win32_surface", VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
         VkInstanceCreateInfo createInfo {};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -244,7 +245,6 @@ namespace Zephyr
         for (auto& extension : extensions)
         {
             m_SupportedExtensions;
-            std::cout << extension << std::endl;
             assert(IsDeviceExtensionSupported(extension));
         }
 

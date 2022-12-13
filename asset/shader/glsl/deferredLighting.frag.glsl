@@ -6,10 +6,7 @@
 const float Epsilon = 0.00001;
 const float ShadowBias = 0.002;
 
-layout(location = 0) in vec3 normal;
-layout(location = 1) in vec2 uv;
-layout(location = 2) in mat3 tbn;
-layout(location = 5) in vec4 viewPos;
+layout(location = 0) in vec2 uv;
 
 layout(location = 0) out vec4 color;
 
@@ -28,23 +25,12 @@ layout(set = 0, binding = 0) readonly buffer GlobalRenderData {
 	vec4 cascadeSphereInfo[4];
 } globalRenderData;
 
-layout(set = 0, binding = 1) uniform samplerCube skybox;
-layout(set = 0, binding = 2) uniform sampler2DArray shadowMap;
+layout(set = 0, binding = 1) uniform sampler2DArray shadowMap;
 
-layout(set = 1, binding = 0) uniform sampler2D albedoMap;
-layout(set = 1, binding = 1) uniform sampler2D normalMap;
-layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessMap;
+layout(set = 1, binding = 0) uniform sampler2D albedoMetalnessMap;
+layout(set = 1, binding = 1) uniform sampler2D normalRoughnessMap;
+layout(set = 1, binding = 2) uniform sampler2D positionOcclusionMap;
 layout(set = 1, binding = 3) uniform sampler2D emissionMap;
-
-layout(push_constant, std140) uniform Material
-{
-	layout(offset = 64)
-	vec3 AlbedoColor;
-	float Metalness;
-	vec3 Emission;
-	float Roughness;
-	float UseNormalMap;
-} materialUniforms;
 
 vec3 F_Schlick(vec3 f0, float VoH) {
 	return f0 + (1. - f0) * pow(clamp(1. - VoH, 0., 1.), 5.);
@@ -230,14 +216,21 @@ void main() {
 //------------------------------------------------------------------------------------------------------
 // Lighting
 
-	vec3 albedo = materialUniforms.AlbedoColor * texture(albedoMap, uv).xyz;
-	vec3 emission = texture(emissionMap, uv).xyz + materialUniforms.Emission;
-	float metalness = materialUniforms.Metalness * texture(metallicRoughnessMap, uv).b;
-	float roughness = materialUniforms.Roughness * texture(metallicRoughnessMap, uv).g;
+	vec4 albedoMetalness = texture(albedoMetalnessMap, uv);
+	vec4 normalRoughness = texture(normalRoughnessMap, uv);
+	vec4 positionOcclusion = texture(positionOcclusionMap, uv);
+	vec3 emission = texture(emissionMap, uv).rgb;
 
-	roughness = clamp(roughness, .05, 1.);
-	// normal
-	vec3 n = normalize( normalize(texture(normalMap, uv) * 2. - 1.).xyz).xyz * materialUniforms.UseNormalMap + (1. - materialUniforms.UseNormalMap) * normal;
+	vec3 position = positionOcclusion.rgb;
+	vec3 albedo =  albedoMetalness.rgb;
+	vec3 n = normalRoughness.rgb;
+	float metalness = albedoMetalness.a;
+	float roughness = normalRoughness.a;
+
+	if(length(n) == 0) {
+		color = vec4(0., 0., 0., 1.);
+		return;
+	}
 
 	// inverse light
 	vec3 l = normalize(-globalRenderData.directionalLightDirection);
@@ -282,7 +275,7 @@ void main() {
 	for(uint i = 0; i < 4; i++) {
 		vec3 sphereCenter = globalRenderData.cascadeSphereInfo[i].xyz;
 		float sphereRadius = globalRenderData.cascadeSphereInfo[i].w;
-		float d = length(sphereCenter - viewPos.xyz);
+		float d = length(sphereCenter - position);
 		if(d < sphereRadius) {
 			cascadeRadius = sphereRadius;
 			centerDistance = d;
@@ -291,7 +284,7 @@ void main() {
 		}
 	}
 
-	vec4 lightSpaceCorrected = globalRenderData.lightVPCascade[cascadeLevel] * viewPos;
+	vec4 lightSpaceCorrected = globalRenderData.lightVPCascade[cascadeLevel] * vec4(position, 1.);
 
 	vec3 shadowMapUV = lightSpaceCorrected.xyz / lightSpaceCorrected.w;
 
@@ -310,7 +303,7 @@ void main() {
 
 		if(cascadeRadius - centerDistance < transition) {
 		
-			vec4 a = globalRenderData.lightVPCascade[cascadeLevel + 1] * viewPos;
+			vec4 a = globalRenderData.lightVPCascade[cascadeLevel + 1] * vec4(position, 1.);
 			float shadowNext = PCF_Box7x7(vec2(a.x * .5 + .5, a.y * .5 + .5), a.z, shadowBias, cascadeLevel + 1);
 
 			shadow = mix(shadowNext, shadow, (cascadeRadius - centerDistance) / transition);
@@ -322,7 +315,7 @@ void main() {
 	// final shading
 	color = vec4(((kd * f_Diffuse + f_Specular) * globalRenderData.directionalLightRadiance * NoL + emission) * shadow, 1.);
 
-
+	color = vec4(emission, 1.);
 //	if(color.x > 1.) {
 //		color = vec4(1., 0., 0., 1.);
 //	}

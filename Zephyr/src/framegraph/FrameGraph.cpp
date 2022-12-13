@@ -122,7 +122,7 @@ namespace Zephyr
     {
         auto resourceNode = GetNode(target);
         CreateEdge(resourceNode, node);
-        node->AddWrite(GetResource(resourceNode->GetHandle()), usage);
+        node->AddWrite(GetResource(target), usage);
     }
 
     // declare a read from resource to renderpass
@@ -131,7 +131,7 @@ namespace Zephyr
 
         auto resourceNode = GetNode(target);
         CreateEdge(node, resourceNode);
-        node->AddRead(GetResource(resourceNode->GetHandle()), usage);
+        node->AddRead(GetResource(target), usage);
     }
 
     void FrameGraph::SetRenderTarget(PassNode* node, const FrameGraphRenderTargetDescriptor& target)

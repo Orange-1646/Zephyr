@@ -416,35 +416,51 @@ namespace Zephyr
         }
     }
 
-    void VulkanDriver::BindTexture(Handle<RHITexture> texture, uint32_t set, uint32_t binding, TextureUsage usage)
+    void VulkanDriver::BindTexture(Handle<RHITexture> texture,
+                                   const ViewRange&   range,
+                                   uint32_t           set,
+                                   uint32_t           binding,
+                                   TextureUsage       usage)
     {
         VkCommandBuffer cb;
-        VulkanTexture*  t;
         switch (usage)
         {
+            case TextureUsageBits::SampledDepthStencil:
             case TextureUsageBits::Sampled:
-                // transit texture to shader read only optimal
-                // cb = BeginSingleTimeCommandBuffer();
-                // t  = GetResource<VulkanTexture>(texture);
-                // t->TransitionLayout(cb, 0, 0, ALL_LAYERS, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                // EndSingleTimeCommandBuffer(cb);
-                m_PipelineCache.BindSampler2D(texture, set, binding);
+                m_PipelineCache.BindSampler2D(texture, range, set, binding);
                 break;
             case TextureUsageBits::Storage:
-                // cb = BeginSingleTimeCommandBuffer();
-                // t  = GetResource<VulkanTexture>(texture);
-                // t->TransitionLayout(cb, 0, 0, ALL_LAYERS, VK_IMAGE_LAYOUT_GENERAL);
-                // EndSingleTimeCommandBuffer(cb);
-                m_PipelineCache.BindStorageImage(texture, set, binding);
+                m_PipelineCache.BindStorageImage(texture, range, set, binding);
                 break;
             default:
                 assert(false);
         }
     }
 
+    void VulkanDriver::BindTexture(Handle<RHITexture> texture, uint32_t set, uint32_t binding, TextureUsage usage)
+    {
+        ViewRange defaultRange = {0, ALL_LAYERS, 0, ALL_LEVELS};
+        BindTexture(texture, defaultRange, set, binding, usage);
+    }
+
     void VulkanDriver::BindConstantBuffer(uint32_t offset, uint32_t size, ShaderStage stage, void* data)
     {
-        auto cb = PrepareCommandBufferGraphics();
+        // we cannot bind push constant to both graphics and compute command buffer
+
+        VkCommandBuffer cb = VK_NULL_HANDLE;
+
+        if (stage & ShaderStageBits::Compute)
+        {
+            assert(!(stage & ShaderStageBits::Vertex || stage & ShaderStageBits::Fragment));
+            cb = PrepareCommandBufferCompute();
+        }
+        if (stage & ShaderStageBits::Vertex || stage & ShaderStageBits::Fragment)
+        {
+            assert(!(stage & ShaderStageBits::Compute));
+            cb = PrepareCommandBufferGraphics();
+        }
+
+        assert(cb != VK_NULL_HANDLE);
         m_PipelineCache.BindPushConstant(cb, offset, size, stage, data);
     }
 
@@ -518,11 +534,12 @@ namespace Zephyr
         }
         VkSamplerCreateInfo createInfo {};
         createInfo.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         createInfo.minFilter    = VK_FILTER_LINEAR;
         createInfo.magFilter    = VK_FILTER_LINEAR;
+        createInfo.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         // TODO: add mipmap&& anisotropy support
 
         VK_CHECK(vkCreateSampler(m_Context.Device(), &createInfo, nullptr, &m_DefaultSampler), "Sampler Creation");
@@ -757,12 +774,25 @@ namespace Zephyr
         return m_CurrentCommandBufferCompute;
     }
 
-    void VulkanDriver::SetupBarrier(Handle<RHITexture> texture, TextureUsage nextUsage)
+    void VulkanDriver::SetupBarrier(Handle<RHITexture> texture, const ViewRange& range, TextureUsage nextUsage, PipelineType pipeline)
     {
+        VkCommandBuffer cb = VK_NULL_HANDLE;
 
-        auto cb = PrepareCommandBufferGraphics();
+        if (pipeline == PipelineTypeBits::Graphics)
+        {
+            cb = PrepareCommandBufferGraphics();
+        }
+        if (pipeline == PipelineTypeBits::Compute)
+        {
+            cb = PrepareCommandBufferCompute();
+        }
+        assert(cb != VK_NULL_HANDLE);
+
         auto vkTexture = GetResource<VulkanTexture>(texture);
-        vkTexture->TransitionLayout(cb, 0, 0, ALL_LAYERS, VulkanUtil::GetImageLayoutFromUsage(nextUsage));
+
+        // FIXME: this should not set all layers and all levels. the function should accept layer and level as parameter
+        vkTexture->TransitionLayout(cb, 0, range.baseLayer, range.layerCount, range.baseLevel, range.levelCount, VulkanUtil::GetImageLayoutFromUsage(nextUsage), pipeline);
+        // EndSingleTimeCommandBuffer(cb);
     }
 
 } // namespace Zephyr

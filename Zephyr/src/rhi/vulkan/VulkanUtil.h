@@ -186,7 +186,7 @@ namespace Zephyr
             return flag;
         }
 
-        static VulkanTransition GetImageTransitionMask(VkImageLayout target)
+        static VulkanTransition GetImageTransitionMask(VkImageLayout target, PipelineType pipeline = PipelineTypeBits::None)
         {
             VulkanTransition transition;
             switch (target)
@@ -209,7 +209,9 @@ namespace Zephyr
                     transition.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                     transition.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
                     transition.srcStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-                    transition.dstStage      = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                    transition.dstStage = pipeline == PipelineTypeBits::Compute ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT :
+                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                        ;
                     break;
                     // We support PRESENT as a target layout to allow blitting from the swap chain.
                     // See also SwapChain::makePresentable().

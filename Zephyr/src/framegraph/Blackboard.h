@@ -17,6 +17,7 @@ namespace Zephyr
             auto iter = m_HandleMap.find(name);
             if (iter == m_HandleMap.end())
             {
+                assert(false);
                 return {};
             }
 

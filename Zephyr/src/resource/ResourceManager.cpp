@@ -96,9 +96,26 @@ namespace Zephyr
         auto litShader = new ShaderSet(shaderDesc, driver);
         m_ShaderSets.insert({"lit", litShader});
 
+        // deferred geometry
+        shaderDesc.vertex     = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/deferredGeometry.vert.spv"));
+        shaderDesc.fragment   = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/deferredGeometry.frag.spv"));
+        shaderDesc.vertexType = VertexType::Static;
+
+        auto dgShader = new ShaderSet(shaderDesc, driver);
+        m_ShaderSets.insert({"deferredGeometry", dgShader});
+
+        // deferred lighting
+        shaderDesc.vertex     = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/deferredLighting.vert.spv"));
+        shaderDesc.fragment   = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/deferredLighting.frag.spv"));
+        shaderDesc.vertexType = VertexType::None;
+
+        auto dlShader = new ShaderSet(shaderDesc, driver);
+        m_ShaderSets.insert({"deferredLighting", dlShader});
+
         // cascade shadow
         shaderDesc.vertex   = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/cascadeShadow.vert.spv"));
         shaderDesc.fragment = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/cascadeShadow.frag.spv"));
+        shaderDesc.vertexType = VertexType::Static;
 
         auto shadowShader = new ShaderSet(shaderDesc, driver);
         m_ShaderSets.insert({"shadow", shadowShader});
@@ -116,6 +133,33 @@ namespace Zephyr
 
         auto postShader = new ShaderSet(shaderDesc, driver);
         m_ShaderSets.insert({"postCompute", postShader});
+        // bloom prefilter
+        shaderDesc.pipeline = PipelineTypeBits::Compute;
+        shaderDesc.compute  = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/bloomPrefilter.comp.spv"));
+
+        auto bloomPrefilterShader     = new ShaderSet(shaderDesc, driver);
+        m_ShaderSets.insert({"bloomPrefilter", bloomPrefilterShader});
+
+        // bloom downsample
+        shaderDesc.pipeline = PipelineTypeBits::Compute;
+        shaderDesc.compute  = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/bloomDownsample.comp.spv"));
+
+        auto bloomDownsampleShader = new ShaderSet(shaderDesc, driver);
+        m_ShaderSets.insert({"bloomDownsample", bloomDownsampleShader});
+
+        // bloom upsample
+        shaderDesc.pipeline = PipelineTypeBits::Compute;
+        shaderDesc.compute  = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/bloomUpsample.comp.spv"));
+
+        auto bloomUpsampleShader = new ShaderSet(shaderDesc, driver);
+        m_ShaderSets.insert({"bloomUpsample", bloomUpsampleShader});
+
+        // bloom composite
+        shaderDesc.pipeline = PipelineTypeBits::Compute;
+        shaderDesc.compute  = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/bloomComposite.comp.spv"));
+
+        auto bloomCompositeShader = new ShaderSet(shaderDesc, driver);
+        m_ShaderSets.insert({"bloomComposite", bloomCompositeShader});
 
         // resolve
         shaderDesc.pipeline   = PipelineTypeBits::Graphics;
@@ -212,8 +256,8 @@ namespace Zephyr
                 auto& constantBlock1  = litMaterial->m_ConstantBlockDescriptors[0];
                 constantBlock1.name   = "materialUniforms";
                 constantBlock1.offset = 64;
-                constantBlock1.size   = 6 * 4;
-                constantBlock1.members.resize(4);
+                constantBlock1.size   = 9 * 4;
+                constantBlock1.members.resize(5);
                 constantBlock1.stage = ShaderStageBits::Fragment;
                 // albedo
                 auto& block1Member0  = constantBlock1.members[0];
@@ -225,20 +269,26 @@ namespace Zephyr
                 block1Member1.name   = "metalness";
                 block1Member1.size   = 4;
                 block1Member1.offset = 3 * 4;
-                // roughness
+                // emission
                 auto& block1Member2  = constantBlock1.members[2];
-                block1Member2.name   = "roughness";
-                block1Member2.size   = 4;
+                block1Member2.name   = "emission";
+                block1Member2.size   = 3 * 4;
                 block1Member2.offset = 4 * 4;
-                // useNormalMap
+                
+                // roughness
                 auto& block1Member3  = constantBlock1.members[3];
-                block1Member3.name   = "useNormalMap";
+                block1Member3.name   = "roughness";
                 block1Member3.size   = 4;
-                block1Member3.offset = 5 * 4;
+                block1Member3.offset = 7 * 4;
+                // useNormalMap
+                auto& block1Member4  = constantBlock1.members[4];
+                block1Member4.name   = "useNormalMap";
+                block1Member4.size   = 4;
+                block1Member4.offset = 8 * 4;
                 // TODO: this is so ugly
-                float dv[6]                 = {.2f, .3f, .4f, 0.f, 1.f, 0.f};
-                constantBlock1.defaultValue = std::vector<uint8_t>(6 * 4);
-                memcpy(constantBlock1.defaultValue.data(), dv, 6 * 4);
+                float dv[9]                 = {.2f, .3f, .4f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f};
+                constantBlock1.defaultValue = std::vector<uint8_t>(9 * 4);
+                memcpy(constantBlock1.defaultValue.data(), dv, 9 * 4);
             }
         }
     }
@@ -327,10 +377,6 @@ namespace Zephyr
         auto mi = CreateMaterialInstance(ShadingModel::Lit);
         mesh->SetMaterials({mi});
         mesh->InitResource(m_Engine->GetDriver());
-        mesh->GetMaterials()[0]->SetTexture("albedoMap", m_WhiteTexture);
-        mesh->GetMaterials()[0]->SetTexture("normalMap", m_WhiteTexture);
-        mesh->GetMaterials()[0]->SetTexture("mrMap", m_WhiteTexture);
-        mesh->GetMaterials()[0]->SetTexture("emissionMap", m_BlackTexture);
         return mesh;
     }
 
@@ -351,6 +397,7 @@ namespace Zephyr
                 instance->SetConstantBlock("metalness", 1.f);
                 instance->SetConstantBlock("roughness", 1.f);
                 instance->SetConstantBlock("useNormapMap", 0.f);
+                instance->SetConstantBlock("emission", glm::vec3(0));
                 break;
         }
 

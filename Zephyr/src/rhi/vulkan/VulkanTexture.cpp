@@ -155,10 +155,10 @@ namespace Zephyr
         copy.imageExtent.depth               = desc.depth;
 
         auto cb = driver->BeginSingleTimeCommandBuffer();
-        TransitionLayout(cb, 0, desc.layer, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        TransitionLayout(cb, 0, desc.layer, 1, desc.level, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         vkCmdCopyBufferToImage(cb, stage.m_Buffer, m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
-        TransitionLayout(cb, 0, desc.layer, 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        TransitionLayout(cb, 0, desc.layer, 1, desc.level, 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         driver->EndSingleTimeCommandBuffer(cb);
         stage.Destroy(driver);
     }
@@ -167,38 +167,42 @@ namespace Zephyr
                                          uint32_t        depth,
                                          uint32_t        layer,
                                          uint32_t        layerCount,
-                                         VkImageLayout   target)
+                                         uint32_t        level,
+                                         uint32_t        levelCount,
+                                         VkImageLayout   target,
+                                         PipelineType    pipeline)
     {
-        auto transition = VulkanUtil::GetImageTransitionMask(target);
-        auto lc         = layerCount == ALL_LAYERS ? m_Description.depth - layer : layerCount;
+        auto transition = VulkanUtil::GetImageTransitionMask(target, pipeline);
+        layerCount      = layerCount == ALL_LAYERS ? m_Description.depth - layer : layerCount;
+        levelCount      = levelCount == ALL_LEVELS ? m_Description.levels - level : levelCount;
 
         std::vector<VkImageMemoryBarrier> barriers;
-        barriers.reserve(lc);
+        barriers.reserve(layerCount * levelCount);
 
-        if (target == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
+        for (uint32_t i = layer; i < layerCount + layer; i++)
         {
-            uint32_t a = 0;
-        }
-
-        for (uint32_t i = layer; i < lc + layer; i++)
-        {
-            auto layout = GetLayout(depth, i);
-            if (layout != target)
+            for (uint32_t j = level; j < levelCount + level; j++)
             {
-                auto& barrier                           = barriers.emplace_back();
-                barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                barrier.oldLayout                       = GetLayout(depth, layer);
-                barrier.newLayout                       = target;
-                barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-                barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-                barrier.image                           = m_Image;
-                barrier.subresourceRange.aspectMask     = VulkanUtil::GetAspectMaskFromUsage(m_Description.usage);
-                barrier.subresourceRange.baseArrayLayer = i;
-                barrier.subresourceRange.layerCount     = 1;
-                barrier.subresourceRange.baseMipLevel   = 0;
-                barrier.subresourceRange.levelCount     = m_Description.levels;
-                barrier.srcAccessMask                   = transition.srcAccessMask;
-                barrier.dstAccessMask                   = transition.dstAccessMask;
+                auto oldLayout = GetLayout(i, j);
+                if (oldLayout != target)
+                {
+                    auto& barrier                           = barriers.emplace_back();
+                    barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                    barrier.oldLayout                       = oldLayout;
+                    barrier.newLayout                       = target;
+                    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+                    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+                    barrier.image                           = m_Image;
+                    barrier.subresourceRange.aspectMask     = VulkanUtil::GetAspectMaskFromUsage(m_Description.usage);
+                    barrier.subresourceRange.baseArrayLayer = i;
+                    barrier.subresourceRange.layerCount     = 1;
+                    barrier.subresourceRange.baseMipLevel   = j;
+                    barrier.subresourceRange.levelCount     = 1;
+                    barrier.srcAccessMask               = transition.srcAccessMask;
+                    barrier.dstAccessMask                   = transition.dstAccessMask;
+
+                    SetLayout(i, j, target);
+                }
             }
         }
         // VkImageMemoryBarrier barrier            = {};
@@ -228,23 +232,18 @@ namespace Zephyr
                                  barriers.size(),
                                  barriers.data());
         }
-
-        for (uint32_t i = layer; i < lc + layer; i++)
-        {
-            SetLayout(depth, i, target);
-        }
     }
 
-    void VulkanTexture::SetLayout(uint32_t depth, uint32_t layer, VkImageLayout layout)
+    void VulkanTexture::SetLayout(uint32_t layer, uint32_t level, VkImageLayout layout)
     {
-        auto iter = m_Layouts.find({depth, layer});
+        auto iter = m_Layouts.find({layer, level});
         if (iter != m_Layouts.end())
         {
             iter->second = layout;
         }
         else
         {
-            m_Layouts.insert({{depth, layer}, layout});
+            m_Layouts.insert({{layer, level}, layout});
         }
     }
 
@@ -253,9 +252,9 @@ namespace Zephyr
         return CreateImageView(driver, range);
     }
 
-    VkImageLayout VulkanTexture::GetLayout(uint32_t depth, uint32_t layer)
+    VkImageLayout VulkanTexture::GetLayout(uint32_t layer, uint32_t level)
     {
-        auto iter = m_Layouts.find({depth, layer});
+        auto iter = m_Layouts.find({layer, level});
         if (iter == m_Layouts.end())
         {
             return VK_IMAGE_LAYOUT_UNDEFINED;
@@ -307,9 +306,11 @@ namespace Zephyr
                                  VK_COMPONENT_SWIZZLE_IDENTITY};
         createInfo.subresourceRange.aspectMask     = GetAspect();
         createInfo.subresourceRange.baseArrayLayer = range.baseLayer;
-        createInfo.subresourceRange.layerCount     = range.layerCount;
-        createInfo.subresourceRange.baseMipLevel   = range.baseLevel;
-        createInfo.subresourceRange.levelCount     = range.levelCount;
+        createInfo.subresourceRange.layerCount =
+            range.layerCount == ALL_LAYERS ? m_MainViewRange.layerCount - range.baseLayer : range.layerCount;
+        createInfo.subresourceRange.baseMipLevel = range.baseLevel;
+        createInfo.subresourceRange.levelCount =
+            range.levelCount == ALL_LEVELS ? m_MainViewRange.levelCount - range.baseLevel : range.levelCount;
 
         VkImageView view;
 

@@ -67,7 +67,7 @@ namespace Zephyr
         std::vector<MaterialInstance*>              m_MaterialInstances;
         // this is just cache, m_Textures owns the texture;
         std::unordered_map<std::string, Texture*> m_TexturePathMap;
-        Mesh*                                     m_SkyboxMesh;
+        Mesh*                                     m_SkyboxMesh = nullptr;
 
         Texture* m_DefaultSkybox = nullptr;
         Texture* m_WhiteTexture  = nullptr;

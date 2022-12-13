@@ -50,12 +50,18 @@ namespace Zephyr
         virtual void WaitAndPresent()                                                              = 0;
         virtual void DrawIndexed(uint32_t vertexOffset, uint32_t indexOffset, uint32_t indexCount) = 0;
         virtual void Draw(uint32_t vertexCount, uint32_t vertexOffset)                             = 0;
-        virtual void Dispatch(uint32_t x, uint32_t y, uint32_t z) = 0;
+        virtual void Dispatch(uint32_t x, uint32_t y, uint32_t z)                                  = 0;
 
-        virtual void BeginRenderPass(Handle<RHIRenderTarget> rt)                                                 = 0;
-        virtual void EndRenderPass(Handle<RHIRenderTarget> rt)                                                   = 0;
-        virtual void BindShaderSet(Handle<RHIShaderSet> shader)                                                  = 0;
-        virtual void BindBuffer(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding, BufferUsage usage)     = 0;
+        virtual void BeginRenderPass(Handle<RHIRenderTarget> rt)                                             = 0;
+        virtual void EndRenderPass(Handle<RHIRenderTarget> rt)                                               = 0;
+        virtual void BindShaderSet(Handle<RHIShaderSet> shader)                                              = 0;
+        virtual void BindBuffer(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding, BufferUsage usage) = 0;
+        virtual void BindTexture(Handle<RHITexture> texture,
+                                 const ViewRange&   range,
+                                 uint32_t           set,
+                                 uint32_t           binding,
+                                 TextureUsage       usage)                                                         = 0;
+        // if no range is provided, we assume that it uses the main view
         virtual void BindTexture(Handle<RHITexture> texture, uint32_t set, uint32_t binding, TextureUsage usage) = 0;
         virtual void BindConstantBuffer(uint32_t offset, uint32_t size, ShaderStage stage, void* data)           = 0;
         virtual void BindVertexBuffer(Handle<RHIBuffer> buffer)                                                  = 0;
@@ -64,7 +70,7 @@ namespace Zephyr
         virtual void SetViewportScissor(const Viewport& viewport, const Scissor& scissor)                        = 0;
 
         // this is for the image layout transition between passes
-        virtual void SetupBarrier(Handle<RHITexture> texture, TextureUsage nextUsage) = 0;
+        virtual void SetupBarrier(Handle<RHITexture> texture, const ViewRange& range, TextureUsage nextUsage, PipelineType pipeline) = 0;
 
         virtual void WaitIdle() = 0;
     };

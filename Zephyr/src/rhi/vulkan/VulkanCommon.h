@@ -10,6 +10,6 @@
 #define VK_CHECK(result, msg) \
     if (result != VK_SUCCESS) \
     { \
-        printf("Vulkan Error: %s\n", msg); \
+        printf("Vulkan Error %d: %s\n", result, msg); \
         assert(false); \
     }

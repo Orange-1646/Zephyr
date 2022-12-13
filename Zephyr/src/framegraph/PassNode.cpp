@@ -42,7 +42,6 @@ namespace Zephyr
                 auto& desc = rtDesc.color.emplace_back();
                 desc       = vr->GetAttachmentDescriptor();
                 desc.usage = TextureUsageBits::ColorAttachment;
-
                 attachments.push_back(vr->GetRHITexture());
             }
             if (m_RTDescriptor.useDepth)
@@ -50,12 +49,15 @@ namespace Zephyr
                 auto vr = static_cast<VirtualResource*>(m_FG->GetResource(m_RTDescriptor.depthStencil.handle));
                 rtDesc.depthStencil       = vr->GetAttachmentDescriptor();
                 rtDesc.depthStencil.usage = TextureUsageBits::DepthStencilAttachment;
+                rtDesc.depthStencil.clear = m_RTDescriptor.depthStencil.clear;
+                rtDesc.depthStencil.save  = m_RTDescriptor.depthStencil.save;
                 attachments.push_back(vr->GetRHITexture());
             }
 
             m_RenderTarget.rt = manager->CreateRenderTarget(rtDesc, attachments);
         }
     }
+
     void PassNode::Destroy(RenderResourceManager* manager)
     {
         if (m_RTDescriptor.IsValid())
@@ -69,19 +71,35 @@ namespace Zephyr
     }
     void PassNode::Execute(FrameGraph* graph)
     {
+        // the assumption here is that if the user didn't setup a proper render target,
+        // this pass is a compute pass
+        
+        if (m_Pass->GetName() == "bloom compute prefilter")
+        {
+            int a = 0;
+        }
+        if (m_Pass->GetName() == "shadow cascade 0")
+        {
+            int a = 0;
+        }
+        
+
+        PipelineType type = m_RenderTarget.rt.IsValid() ? PipelineTypeBits::Graphics : PipelineTypeBits::Compute;
         // add pipeline barrier
         for (auto& read : m_Reads)
         {
             auto r = static_cast<VirtualResource*>(read.resource);
-            m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), read.usage);
+            m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), r->GetViewRange(), read.usage, type);
         }
         for (auto& write : m_Writes)
         {
             auto r = static_cast<VirtualResource*>(write.resource);
-            m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), write.usage);
+            m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), r->GetViewRange(), write.usage, type);
         }
         // execute
+        //m_FG->GetDriver()->BeginDebugMarker(m_Pass->GetName());
         m_Pass->Execute(graph, m_RenderTarget);
+        //m_FG->GetDriver()->EndDebugMarker(m_Pass->GetName());
 
         // destroy rendertarget
     }

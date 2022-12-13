@@ -19,14 +19,15 @@ int main()
 {
     using namespace Zephyr;
 
-    auto               engine = Engine::Create({1080, 640, DriverType::Vulkan, "ZephyrEngineTest", false, false, true});
+    auto               engine = Engine::Create({1920, 1080, DriverType::Vulkan, "ZephyrEngineTest", false, false, true});
     BoxMeshDescription d {5, 5, 5};
     auto               box = engine->CreateMesh(d);
 
     //auto mask = engine->CreateMesh("asset/model/venice_mask/scene.gltf");
 
     auto material = engine->CreateMaterial(ShadingModel::Lit);
-    material->SetConstantBlock<glm::vec3>("albedo", {.2, 1., 1.});
+    material->SetConstantBlock<glm::vec3>("albedo", {0., 0., 0.});
+    material->SetConstantBlock<glm::vec3>("emission", {0., 5.6, 3.5});
     box->SetMaterials({material});
 
     engine->Run([box](Engine* engine) {
@@ -39,17 +40,17 @@ int main()
 
         auto e3               = scene->CreateEntity();
         auto cameraComponent3 = scene->AddComponent<MainCameraComponent>(e3);
-        cameraComponent3->camera.SetPerspective(45., 1080. / 640., .1, 1000.);
+        cameraComponent3->camera.SetPerspective(45., 1920. / 1080., .1, 50.);
         cameraComponent3->camera.LookAt({0, 20, 20}, {0, -1, -1}, {0.f, 1.f, 0.f});
 
         auto transform = glm::mat4(1.);
         transform      = glm::translate(transform, {0, 3, 0});
 
         // floor
-        auto fm = engine->CreateMesh(BoxMeshDescription{300., 1., 300.});
-        auto floor = scene->CreateEntity();
-        auto floorMesh = scene->AddComponent<MeshComponent>(floor);
-        floorMesh->mesh    = fm;
+        //auto fm = engine->CreateMesh(BoxMeshDescription{300., 1., 300.});
+        //auto floor = scene->CreateEntity();
+        //auto floorMesh = scene->AddComponent<MeshComponent>(floor);
+        //floorMesh->mesh    = fm;
 
         // mask
         //auto msk = scene->CreateEntity();
@@ -59,18 +60,24 @@ int main()
         //mskTrans->transform = glm::scale(transform, {300., 300., 300.});
 
         // boxes
-        for (int i = -3; i < 3; i++)
-        {
-            for (int j = 0; j < 6; j++)
-            {
-                auto e1             = scene->CreateEntity();
-                auto meshComponent1 = scene->AddComponent<MeshComponent>(e1);
-                auto meshTransform  = scene->AddComponent<TransformComponent>(e1);
+        auto e1             = scene->CreateEntity();
+        auto meshComponent1 = scene->AddComponent<MeshComponent>(e1);
+        auto meshTransform  = scene->AddComponent<TransformComponent>(e1);
 
-                meshComponent1->mesh = box;
-                meshTransform->transform = glm::translate(transform, {20 * i, 0, -20 * j});
-            }
-        }
+        meshComponent1->mesh     = box;
+        meshTransform->transform = glm::translate(transform, {0, 0, -0});
+        //for (int i = -3; i < 3; i++)
+        //{
+        //    for (int j = 0; j < 6; j++)
+        //    {
+        //        auto e1             = scene->CreateEntity();
+        //        auto meshComponent1 = scene->AddComponent<MeshComponent>(e1);
+        //        auto meshTransform  = scene->AddComponent<TransformComponent>(e1);
+
+        //        meshComponent1->mesh = box;
+        //        meshTransform->transform = glm::translate(transform, {20 * i, 0, -20 * j});
+        //    }
+        //}
 
         scene->AddSystem<RenderSystem>();
         scene->AddSystem<CameraControlSystem>();

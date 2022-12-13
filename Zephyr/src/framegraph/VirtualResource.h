@@ -2,6 +2,7 @@
 #include "FrameGraphResource.h"
 #include "pch.h"
 #include "render/RenderResourceManager.h"
+#include "rhi/RHITexture.h"
 
 namespace Zephyr
 {
@@ -93,15 +94,30 @@ namespace Zephyr
             return m_Resource.GetHandle();
         }
 
+        ViewRange GetViewRange()
+        {
+            if (IsSubresource())
+            {
+                return {m_SubresourceDescriptor.baseLayer,
+                        m_SubresourceDescriptor.layerCount,
+                        m_SubresourceDescriptor.baseLevel,
+                        m_SubresourceDescriptor.levelCount};
+            }
+            else
+            {
+                return {0, ALL_LAYERS, 0, ALL_LEVELS};
+            }
+        }
+
         //
         AttachmentDescriptor GetAttachmentDescriptor()
         {
-
+            // the assumption is that if used as a render attachment, we can only use one layer and one level at a time
             AttachmentDescriptor desc {};
             if (IsSubresource())
             {
-                desc.layer = m_SubresourceDescriptor.layer;
-                desc.level = m_SubresourceDescriptor.level;
+                desc.layer = m_SubresourceDescriptor.baseLayer;
+                desc.level = m_SubresourceDescriptor.baseLevel;
             }
             else
             {

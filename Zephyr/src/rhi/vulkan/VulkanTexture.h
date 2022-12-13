@@ -4,39 +4,8 @@
 
 namespace Zephyr
 {
-    constexpr uint32_t ALL_LAYERS = UINT32_MAX;
     class VulkanDriver;
     class VulkanContext;
-    struct ViewRange
-    {
-        uint32_t baseLayer;
-        uint32_t layerCount;
-        uint32_t baseLevel;
-        uint32_t levelCount;
-
-        bool operator==(const ViewRange& rhs) const
-        {
-            return rhs.baseLayer == baseLayer && rhs.layerCount == layerCount && rhs.baseLayer == baseLevel &&
-                   rhs.levelCount == levelCount;
-        }
-    };
-
-    struct ViewRangeHasher
-    {
-        std::size_t operator()(const ViewRange& range) const
-        {
-            using std::hash;
-            using std::size_t;
-            using std::string;
-
-            // Compute individual hash values for first,
-            // second and third and combine them using XOR
-            // and bit shifting:
-
-            return ((hash<uint32_t>()(range.baseLayer) ^ (hash<uint32_t>()(range.layerCount) << 1)) >> 1) ^
-                   (hash<uint32_t>()(range.baseLevel) << 1) ^ (hash<uint32_t>()(range.levelCount) << 1) >> 1;
-        }
-    };
 
     class VulkanTexture : public RHITexture
     {
@@ -54,10 +23,10 @@ namespace Zephyr
         void Destroy(VulkanDriver* driver);
 
         void Update(VulkanDriver* driver, const TextureUpdateDescriptor& desc);
-        void TransitionLayout(VkCommandBuffer cb, uint32_t depth, uint32_t layer, uint32_t layerCount, VkImageLayout target);
+        void TransitionLayout(VkCommandBuffer cb, uint32_t depth, uint32_t layer, uint32_t layerCount, uint32_t level, uint32_t levelCount, VkImageLayout target, PipelineType pipeline = PipelineTypeBits::None);
 
         // track the layout of target range
-        void SetLayout(uint32_t depth, uint32_t layer, VkImageLayout layout);
+        void SetLayout(uint32_t layer, uint32_t level, VkImageLayout layout);
 
         // get imageview
         VkImageView GetView(VulkanDriver* driver, const ViewRange& range);
@@ -67,7 +36,7 @@ namespace Zephyr
         inline TextureUsage                  GetUsage() { return m_Description.usage; }
 
     private:
-        VkImageLayout GetLayout(uint32_t depth, uint32_t layer);
+        VkImageLayout GetLayout(uint32_t layer, uint32_t level);
         void          CreateDefaultImageView(VulkanDriver* driver);
 
         VkImageView        CreateImageView(VulkanDriver* driver, const ViewRange& range);

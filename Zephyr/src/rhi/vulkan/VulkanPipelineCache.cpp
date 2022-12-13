@@ -42,7 +42,7 @@ namespace Zephyr
             m_CurrentBinding.set[set].resize(binding + 1);
         }
 
-        m_CurrentBinding.set[set][binding] = {DescriptorType::StorageBufferDynamic, buffer.GetID(), offset};
+        m_CurrentBinding.set[set][binding] = {DescriptorType::StorageBufferDynamic, buffer.GetID(), ViewRange::INVALID_RANGE, offset};
     }
 
     void VulkanPipelineCache::BindStorageBuffer(Handle<RHIBuffer> buffer, uint32_t set, uint32_t binding)
@@ -59,7 +59,10 @@ namespace Zephyr
         m_CurrentBinding.set[set][binding] = {DescriptorType::StorageBuffer, buffer.GetID()};
     }
 
-    void VulkanPipelineCache::BindSampler2D(Handle<RHITexture> texture, uint32_t set, uint32_t binding)
+    void VulkanPipelineCache::BindSampler2D(Handle<RHITexture> texture,
+                                            const ViewRange&   range,
+                                            uint32_t           set,
+                                            uint32_t           binding)
     {
 
         if (m_CurrentBinding.set.size() < set + 1)
@@ -71,7 +74,7 @@ namespace Zephyr
             m_CurrentBinding.set[set].resize(binding + 1);
         }
 
-        m_CurrentBinding.set[set][binding] = {DescriptorType::CombinedImageSampler, texture.GetID()};
+        m_CurrentBinding.set[set][binding] = {DescriptorType::CombinedImageSampler, texture.GetID(), range};
     }
 
     void VulkanPipelineCache::BindSampler2DArray(Handle<RHITexture> texture, uint32_t set, uint32_t binding)
@@ -103,7 +106,10 @@ namespace Zephyr
         m_CurrentBinding.set[set][binding] = {DescriptorType::CombinedImageSampler, texture.GetID()};
     }
 
-    void VulkanPipelineCache::BindStorageImage(Handle<RHITexture> texture, uint32_t set, uint32_t binding)
+    void VulkanPipelineCache::BindStorageImage(Handle<RHITexture> texture,
+                                               const ViewRange&   range,
+                                               uint32_t           set,
+                                               uint32_t           binding)
     {
         if (m_CurrentBinding.set.size() < set)
         {
@@ -114,7 +120,7 @@ namespace Zephyr
             m_CurrentBinding.set[set].resize(binding);
         }
 
-        m_CurrentBinding.set[set][binding] = {DescriptorType::StorageImage, texture.GetID()};
+        m_CurrentBinding.set[set][binding] = {DescriptorType::StorageImage, texture.GetID(), range};
     }
 
     void VulkanPipelineCache::BindPushConstant(VkCommandBuffer cb,
@@ -172,7 +178,8 @@ namespace Zephyr
                 return;
             }
             vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, pip);
-            m_FreshPipelineCompute = true;
+            m_FreshPipelineCompute         = true;
+            m_CurrentBoundPipelineCompute = pip;
         }
         if (m_BoundShader->GetPipelineType() == PipelineTypeBits::Graphics)
         {
@@ -183,9 +190,9 @@ namespace Zephyr
                 return;
             }
             vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pip);
-            m_FreshPipelineGraphics = true;
+            m_FreshPipelineGraphics        = true;
+            m_CurrentBoundPipelineGraphics = pip;
         }
-        m_CurrentBoundPipelineGraphics = pip;
     }
 
     // TODO: this is currently not very readable nor very efficient. need refactor
@@ -232,6 +239,7 @@ namespace Zephyr
                 auto bindingDescriptor            = setDescriptor.bindings[binding];
                 cacheKey.Bindings[binding].handle = m_CurrentBinding.set[set][binding].handle;
                 cacheKey.Bindings[binding].type   = m_CurrentBinding.set[set][binding].type;
+                cacheKey.Bindings[binding].range  = m_CurrentBinding.set[set][binding].range;
                 auto offset                       = m_CurrentBinding.set[set][binding].offset;
 
                 if (offset != -1)
@@ -308,6 +316,7 @@ namespace Zephyr
 
                     auto bindingHandle   = m_CurrentBinding.set[set][binding].handle;
                     auto bindingType     = m_CurrentBinding.set[set][binding].type;
+                    auto& range           = m_CurrentBinding.set[set][binding].range;
                     write.descriptorType = VulkanUtil::GetDescriptorType(bindingType);
 
                     VkDescriptorImageInfo&  image  = images[binding];
@@ -316,7 +325,8 @@ namespace Zephyr
                     switch (bindingType)
                     {
                         case DescriptorType::CombinedImageSampler:
-                            image.imageView   = m_Driver->GetTexture(bindingHandle)->GetMainView();
+                            assert(range.IsValid());
+                            image.imageView   = m_Driver->GetTexture(bindingHandle)->GetView(m_Driver, range);
                             image.imageLayout = m_Driver->GetTexture(bindingHandle)->GetUsage() &
                                                         TextureUsageBits::DepthStencilAttachment ?
                                                     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
@@ -325,7 +335,8 @@ namespace Zephyr
                             write.pImageInfo  = &image;
                             break;
                         case DescriptorType::StorageImage:
-                            image.imageView   = m_Driver->GetTexture(bindingHandle)->GetMainView();
+                            assert(range.IsValid());
+                            image.imageView   = m_Driver->GetTexture(bindingHandle)->GetView(m_Driver, range);
                             image.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
                             write.pImageInfo  = &image;
                             break;
@@ -485,11 +496,19 @@ namespace Zephyr
         colorBlendAttachment.colorWriteMask =
             VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
+        std::vector<VkPipelineColorBlendAttachmentState> attachments;
+        uint32_t colorAttachmentCount = m_BoundRenderPass->GetDescriptor().color.size();
+
+        for (uint32_t i = 0; i < colorAttachmentCount; i++)
+        {
+            attachments.push_back(colorBlendAttachment);
+        }
+
         VkPipelineColorBlendStateCreateInfo colorBlending {};
         colorBlending.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlending.logicOpEnable   = VK_FALSE;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments    = &colorBlendAttachment;
+        colorBlending.attachmentCount = attachments.size();
+        colorBlending.pAttachments    = attachments.data();
 
         // viewport and scissor
         VkDynamicState states[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
