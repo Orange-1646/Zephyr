@@ -21,7 +21,7 @@ namespace Zephyr
         }
         VkBufferCreateInfo createInfo {};
         createInfo.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        createInfo.size                  = GetBufferSize(driver, desc.size, desc.memoryType);
+        createInfo.size                  = GetBufferSize(driver, desc.size, desc.usage, desc.memoryType);
         createInfo.usage                 = VulkanUtil::GetVulkanBufferUsage(desc.usage);
         createInfo.sharingMode           = VulkanUtil::GetSharingMode(desc.pipelines);
         createInfo.queueFamilyIndexCount = queueIndices.size();
@@ -89,8 +89,8 @@ namespace Zephyr
         else if (m_Description.memoryType == BufferMemoryType::Static)
         {
             BufferDescription stageDesc {};
-            stageDesc.memoryType = BufferMemoryType::Dynamic;
-            stageDesc.pipelines  = m_Description.pipelines;
+            stageDesc.memoryType   = BufferMemoryType::Dynamic;
+            stageDesc.pipelines    = m_Description.pipelines;
             stageDesc.shaderStages = m_Description.shaderStages;
             stageDesc.size         = desc.size;
             stageDesc.usage        = BufferUsageBits::None;
@@ -101,7 +101,7 @@ namespace Zephyr
             auto cb = driver->BeginSingleTimeCommandBuffer();
 
             VkBufferCopy region {};
-            region.size = desc.size;
+            region.size      = desc.size;
             region.srcOffset = 0;
             region.dstOffset = desc.dstOffset;
 
@@ -117,7 +117,7 @@ namespace Zephyr
         }
     }
 
-    uint32_t VulkanBuffer::GetBufferSize(VulkanDriver* driver, uint32_t size, BufferMemoryType type)
+    uint32_t VulkanBuffer::GetBufferSize(VulkanDriver* driver, uint32_t size, BufferUsage usage, BufferMemoryType type)
     {
         auto& context = *driver->GetContext();
         if (type != BufferMemoryType::DynamicRing)
@@ -128,7 +128,18 @@ namespace Zephyr
         VkPhysicalDeviceProperties physicalDeviceProperties;
 
         vkGetPhysicalDeviceProperties(context.PhysicalDevice(), &physicalDeviceProperties);
-        uint32_t dynamicAlignment = physicalDeviceProperties.limits.minStorageBufferOffsetAlignment;
+
+        uint32_t dynamicAlignment = 0;
+        if (usage == BufferUsageBits::StorageDynamic)
+        {
+            dynamicAlignment = physicalDeviceProperties.limits.minStorageBufferOffsetAlignment;
+        }
+        else if (usage == BufferUsageBits::UniformDynamic)
+        {
+            dynamicAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+        }
+
+        assert(dynamicAlignment != 0);
 
         m_RingBufferAlignment = (size + dynamicAlignment - 1) & ~(dynamicAlignment - 1);
         m_RingBufferSize      = MAX_CONCURRENT_FRAME * m_RingBufferAlignment;

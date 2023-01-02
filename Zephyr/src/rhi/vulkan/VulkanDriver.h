@@ -4,6 +4,7 @@
 #include "VulkanContext.h"
 #include "VulkanPipelineCache.h"
 #include "VulkanRenderTarget.h"
+#include "VulkanSamplerCache.h"
 #include "VulkanSwapchain.h"
 #include "pch.h"
 #include "rhi/Driver.h"
@@ -16,7 +17,7 @@ namespace Zephyr
     class VulkanDriver final : public Driver
     {
     public:
-        VulkanDriver(Window* window);
+        VulkanDriver(Window* window, bool headless = false);
         ~VulkanDriver() override;
 
         inline Window*        GetWindow() { return m_Window; }
@@ -33,8 +34,9 @@ namespace Zephyr
         Handle<RHITexture>      CreateTexture(const TextureDescription& desc, VkImage image, VkFormat format);
         Handle<RHITexture>      GetSwapchainImage() override;
         // resource update
-        void UpdateBuffer(const BufferUpdateDescriptor& desc, Handle<RHIBuffer> handle);
-        void UpdateTexture(const TextureUpdateDescriptor& desc, Handle<RHITexture> handle);
+        void UpdateBuffer(const BufferUpdateDescriptor& desc, Handle<RHIBuffer> handle) override;
+        void         UpdateTexture(const TextureUpdateDescriptor& desc, Handle<RHITexture> handle) override;
+        void GenerateMips(Handle<RHITexture>) override;
 
         // resource destruction
         void DestroyBuffer(Handle<RHIBuffer> handle) override;
@@ -59,15 +61,23 @@ namespace Zephyr
                          const ViewRange&   range,
                          uint32_t           set,
                          uint32_t           binding,
-                         TextureUsage       usage) override;
-        void BindTexture(Handle<RHITexture> texture, uint32_t set, uint32_t binding, TextureUsage usage) override;
+                         TextureUsage       usage,
+                         SamplerWrap        addressMode = SamplerWrap::Repeat) override;
+        void BindTexture(Handle<RHITexture> texture,
+                         uint32_t           set,
+                         uint32_t           binding,
+                         TextureUsage       usage,
+                         SamplerWrap addressMode = SamplerWrap::Repeat) override;
         void BindConstantBuffer(uint32_t offset, uint32_t size, ShaderStage stage, void* data) override;
         void BindVertexBuffer(Handle<RHIBuffer> buffer) override;
         void BindIndexBuffer(Handle<RHIBuffer> buffer) override;
         void SetRasterState(const RasterState& raster) override;
         void SetViewportScissor(const Viewport& viewport, const Scissor& scissor);
 
-        void SetupBarrier(Handle<RHITexture> texture, const ViewRange& range, TextureUsage nextUsage, PipelineType pipeline) override;
+        void SetupBarrier(Handle<RHITexture> texture,
+                          const ViewRange&   range,
+                          TextureUsage       nextUsage,
+                          PipelineType       pipeline) override;
 
         // for internal uses
         VkCommandBuffer BeginSingleTimeCommandBuffer();
@@ -75,6 +85,7 @@ namespace Zephyr
         VulkanTexture*  GetTexture(HandleID id);
         VulkanBuffer*   GetBuffer(HandleID id);
         VkSampler       GetSampler();
+        VkSampler       GetSampler(SamplerWrap addressMode);
 
         void WaitIdle() { vkDeviceWaitIdle(m_Context.Device()); }
 
@@ -98,7 +109,7 @@ namespace Zephyr
 
         inline VkFormat GetSurfaceFormat() { return m_Swapchain->GetSurfaceFormat(); }
 
-    private:
+    public:
         // synchronize indicates if there are graphics job after us and we need to provide a semaphore to sync with it
         void SubmitJobCompute(bool synchronize);
         // synchronize indicates if there are compute job after us and we need to provide a semaphore to sync with it
@@ -112,16 +123,17 @@ namespace Zephyr
 
     private:
         Window*          m_Window;
-        VulkanSwapchain* m_Swapchain;
+        VulkanSwapchain* m_Swapchain = nullptr;
         // Do NOT change the order of declaration of the member below.
         VulkanContext       m_Context;
         VulkanPipelineCache m_PipelineCache;
+        VulkanSamplerCache  m_SamplerCache;
 
         uint32_t m_CurrentFrameIndex = 0;
 
         uint32_t                            m_HandleIdNext = 0;
         std::unordered_map<HandleID, void*> m_ResourceCache;
-
+        // command buffer and synchronization management
         VkCommandBuffer                           m_CurrentGraphicsCB = VK_NULL_HANDLE;
         VkCommandBuffer                           m_CurrentComputeCB  = VK_NULL_HANDLE;
         std::vector<VkCommandPool>                m_CommandPoolGraphics;
@@ -150,5 +162,7 @@ namespace Zephyr
         VkBuffer m_BoundIndexBuffer  = VK_NULL_HANDLE;
 
         std::string m_DebugMarkerName;
+
+        bool m_Headless = false;
     };
 } // namespace Zephyr

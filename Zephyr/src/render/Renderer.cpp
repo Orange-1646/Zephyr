@@ -20,6 +20,11 @@ namespace Zephyr
         desc.usage        = BufferUsageBits::StorageDynamic;
 
         m_GlobalRingBuffer = engine->CreateBuffer(desc);
+        // setup point light ringbuffer
+        desc.size  = sizeof(PointLightShaderData);
+        desc.usage = BufferUsageBits::UniformDynamic;
+
+        m_PointLightBuffer = engine->CreateBuffer(desc);
     }
     void Renderer::Shutdown() { m_Manager.Shutdown(); }
 
@@ -30,6 +35,7 @@ namespace Zephyr
         m_Scene = scene;
         PrepareScene();
         SetupGlobalRenderData();
+        SetupPointLightData();
         //  build frame graph
 
         if (!m_Driver->BeginFrame(m_Engine->GetFrame()))
@@ -40,9 +46,10 @@ namespace Zephyr
         FrameGraph fg(m_Engine, &m_Manager);
 
         DrawShadowMap(fg);
-        //DrawForward(fg);
+        // DrawForward(fg);
         DrawDeferred(fg);
         DispatchBloomCompute(fg);
+        DispatchFXAACompute(fg);
         DispatchPostProcessingCompute(fg);
         DrawResolve(fg);
 
@@ -68,7 +75,7 @@ namespace Zephyr
                 ru.indexOffset  = submesh.baseIndex;
                 ru.indexCount   = submesh.indexCount;
                 ru.material     = mesh->GetMaterials()[submesh.materialIndex];
-                ru.transform    = m_Scene.transforms[i] * submesh.transform;
+                ru.transform    = submesh.transform * m_Scene.transforms[i];
             }
             i++;
         }
@@ -95,6 +102,26 @@ namespace Zephyr
         update.dstOffset = 0;
 
         m_Driver->UpdateBuffer(update, m_GlobalRingBuffer->GetHandle());
+    }
+
+    void Renderer::SetupPointLightData()
+    {
+        auto& lights = m_Scene.pointLights;
+
+        for (uint32_t i = 0; i < lights.size(); i++)
+        {
+
+            m_PointLightData.pointLights[i] = lights[i];
+        }
+        m_PointLightData.activePointLight = lights.size();
+
+        BufferUpdateDescriptor update {};
+        update.data      = &m_PointLightData;
+        update.size      = sizeof(m_PointLightData);
+        update.srcOffset = 0;
+        update.dstOffset = 0;
+
+        m_Driver->UpdateBuffer(update, m_PointLightBuffer->GetHandle());
     }
 
     void Renderer::PrepareCascadedShadowData()
@@ -248,13 +275,16 @@ namespace Zephyr
                     // bind render target
                     m_Driver->BeginRenderPass(rt.rt);
                     m_Driver->BindShaderSet(m_Engine->GetShaderSet("shadow")->GetHandle());
-                    m_Driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true});
+                    m_Driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true, false});
 
                     auto handle = m_GlobalRingBuffer->GetHandle();
                     m_Driver->BindBuffer(m_GlobalRingBuffer->GetHandle(), 0, 0, BufferUsageBits::StorageDynamic);
                     for (auto& unit : m_SceneRenderUnit)
                     {
-
+                        if (!unit.material->DoCastShadow())
+                        {
+                            continue;
+                        }
                         struct ShadowMapConstant
                         {
                             glm::mat4 world;
@@ -298,7 +328,7 @@ namespace Zephyr
                 colorDesc.depth     = 1;
                 colorDesc.levels    = 1;
                 colorDesc.samples   = 1;
-                colorDesc.format    = TextureFormat::RGBA16_SRGB;
+                colorDesc.format    = TextureFormat::RGBA16_SFLOAT;
                 colorDesc.usage     = TextureUsageBits::ColorAttachment | TextureUsageBits::Sampled;
                 colorDesc.sampler   = SamplerType::Sampler2D;
                 colorDesc.pipelines = PipelineTypeBits::Graphics | PipelineTypeBits::Compute;
@@ -335,11 +365,11 @@ namespace Zephyr
             },
             [&](FrameGraph* fg, ColorPassData* m_Data, PassRenderTarget rt) {
                 auto dimension = m_Engine->GetWindowDimension();
-                m_Driver->SetViewportScissor({0, dimension.second, (int)dimension.first, -(int)dimension.second},
+                m_Driver->SetViewportScissor({0, 0, (int)dimension.first, (int)dimension.second},
                                              {0, 0, dimension.first, dimension.second});
                 // bind render target
                 m_Driver->BeginRenderPass(rt.rt);
-                m_Driver->SetRasterState({Culling::BackFace, FrontFace::CounterClockwise, true, true});
+                m_Driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true, false});
                 auto handle = m_GlobalRingBuffer->GetHandle();
                 m_Driver->BindBuffer(m_GlobalRingBuffer->GetHandle(), 0, 0, BufferUsageBits::StorageDynamic);
 
@@ -348,6 +378,7 @@ namespace Zephyr
                 auto shadowMap = shadowResource->GetRHITexture();
 
                 m_Driver->BindTexture(shadowMap, 0, 2, TextureUsageBits::SampledDepthStencil);
+                m_Driver->BindBuffer(m_PointLightBuffer->GetHandle(), 0, 3, BufferUsageBits::UniformDynamic);
                 m_Driver->BindTexture(m_Engine->GetDefaultSkybox()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
                 m_Driver->BindShaderSet(m_Engine->GetShaderSet("lit")->GetHandle());
                 for (auto& unit : m_SceneRenderUnit)
@@ -361,13 +392,13 @@ namespace Zephyr
                 }
 
                 // skybox
-                if (true)
+                if (false)
                 {
                     m_Driver->BindShaderSet(m_Engine->GetShaderSet("skybox")->GetHandle());
                     m_Driver->BindTexture(m_Engine->GetDefaultSkybox()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
                     auto skyboxMesh = m_Engine->GetSkyboxMesh();
                     auto meshlet    = skyboxMesh->GetSubmeshes()[0];
-                    m_Driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true});
+                    m_Driver->SetRasterState({Culling::BackFace, FrontFace::CounterClockwise, true, true, false});
                     m_Driver->BindVertexBuffer(skyboxMesh->GetVertexBuffer());
                     m_Driver->BindIndexBuffer(skyboxMesh->GetIndexBuffer());
                     m_Driver->DrawIndexed(meshlet.baseVertex, meshlet.baseIndex, meshlet.indexCount);
@@ -402,17 +433,17 @@ namespace Zephyr
                 colorDesc.depth     = 1;
                 colorDesc.levels    = 1;
                 colorDesc.samples   = 1;
-                colorDesc.format    = TextureFormat::RGBA16_SRGB;
+                colorDesc.format    = TextureFormat::RGBA16_SFLOAT;
                 colorDesc.usage     = TextureUsageBits::ColorAttachment | TextureUsageBits::Sampled;
                 colorDesc.sampler   = SamplerType::Sampler2D;
                 colorDesc.pipelines = PipelineTypeBits::Graphics;
                 data->color0        = fg->CreateTexture(colorDesc, false);
                 data->color3        = fg->CreateTexture(colorDesc, false);
                 data->color2        = fg->CreateTexture(colorDesc, false);
+                data->color1        = fg->CreateTexture(colorDesc);
 
-                // for rest of the attachments, rba8 will do
-                colorDesc.format = TextureFormat::RGBA8_UNORM;
-                data->color1     = fg->CreateTexture(colorDesc);
+                // for rest of the attachments, signed rba8 will do
+                // colorDesc.format = TextureFormat::RGBA8_SNORM;
 
                 TextureDescription dsDesc {};
                 dsDesc.width     = windowDimension.first;
@@ -466,7 +497,7 @@ namespace Zephyr
                                            {0, 0, dimension.first, dimension.second});
                 // bind render target
                 driver->BeginRenderPass(rt.rt);
-                driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true});
+                driver->SetRasterState({Culling::FrontFace, FrontFace::CounterClockwise, true, true, false});
                 auto handle = self->m_GlobalRingBuffer->GetHandle();
                 driver->BindBuffer(self->m_GlobalRingBuffer->GetHandle(), 0, 0, BufferUsageBits::StorageDynamic);
 
@@ -513,14 +544,13 @@ namespace Zephyr
                 data->shadow                                  = blackboard.Get("shadow");
                 data->depthStencil                            = blackboard.Get("geometryDepthStencil");
 
-                // create color output. we dont need depth attachment for the lighting pass
                 TextureDescription desc {};
                 desc.width     = windowDimension.first;
                 desc.height    = windowDimension.second;
                 desc.depth     = 1;
                 desc.levels    = 1;
                 desc.samples   = 1;
-                desc.format    = TextureFormat::RGBA16_SRGB;
+                desc.format    = TextureFormat::RGBA16_SFLOAT;
                 desc.usage     = TextureUsageBits::ColorAttachment | TextureUsageBits::Sampled;
                 desc.sampler   = SamplerType::Sampler2D;
                 desc.pipelines = PipelineTypeBits::Graphics;
@@ -538,8 +568,8 @@ namespace Zephyr
                 FrameGraphRenderTargetDescriptor rtDesc {};
                 rtDesc.color.push_back({data->color, true, true});
                 rtDesc.depthStencil = {data->depthStencil, false, false};
-                rtDesc.useDepth = true;
-                rtDesc.present  = false;
+                rtDesc.useDepth     = true;
+                rtDesc.present      = false;
 
                 fg->SetRenderTarget(node, rtDesc);
 
@@ -550,37 +580,40 @@ namespace Zephyr
             [engine = m_Engine, driver = m_Driver, self = this](
                 FrameGraph* fg, LightingData* data, PassRenderTarget rt) {
                 auto& blackboard = fg->GetBlackboard();
-                auto dimension = engine->GetWindowDimension();
+                auto  dimension  = engine->GetWindowDimension();
 
-                
                 driver->BindShaderSet(engine->GetShaderSet("deferredLighting")->GetHandle());
                 driver->SetViewportScissor({0, 0, (int)dimension.first, (int)dimension.second},
                                            {0, 0, dimension.first, dimension.second});
                 // bind render target
                 driver->BeginRenderPass(rt.rt);
-                driver->SetRasterState({Culling::None, FrontFace::CounterClockwise, false, false});
-                auto handle = self->m_GlobalRingBuffer->GetHandle();
-                driver->BindBuffer(self->m_GlobalRingBuffer->GetHandle(), 0, 0, BufferUsageBits::StorageDynamic);
+                driver->SetRasterState({Culling::None, FrontFace::CounterClockwise, false, false, false});
                 // bind g-buffers
 
                 auto shadowMap = static_cast<VirtualResource*>(fg->GetResource(data->shadow))->GetRHITexture();
-                auto color0 = static_cast<VirtualResource*>(fg->GetResource(data->color0))->GetRHITexture();
-                auto color1 = static_cast<VirtualResource*>(fg->GetResource(data->color1))->GetRHITexture();
-                auto color2 = static_cast<VirtualResource*>(fg->GetResource(data->color2))->GetRHITexture();
-                auto color3 = static_cast<VirtualResource*>(fg->GetResource(data->color3))->GetRHITexture();
+                auto color0    = static_cast<VirtualResource*>(fg->GetResource(data->color0))->GetRHITexture();
+                auto color1    = static_cast<VirtualResource*>(fg->GetResource(data->color1))->GetRHITexture();
+                auto color2    = static_cast<VirtualResource*>(fg->GetResource(data->color2))->GetRHITexture();
+                auto color3    = static_cast<VirtualResource*>(fg->GetResource(data->color3))->GetRHITexture();
 
+                driver->BindBuffer(self->m_GlobalRingBuffer->GetHandle(), 0, 0, BufferUsageBits::StorageDynamic);
                 driver->BindTexture(shadowMap, 0, 1, TextureUsageBits::SampledDepthStencil);
+                driver->BindBuffer(self->m_PointLightBuffer->GetHandle(), 0, 2, BufferUsageBits::UniformDynamic);
+                driver->BindTexture(engine->GetDefaultPrefilteredEnv()->GetHandle(), 0, 3, TextureUsageBits::Sampled);
+                driver->BindTexture(engine->GetBRDFLut()->GetHandle(), 0, 4, TextureUsageBits::Sampled);
                 driver->BindTexture(color0, 1, 0, TextureUsageBits::Sampled);
                 driver->BindTexture(color1, 1, 1, TextureUsageBits::Sampled);
                 driver->BindTexture(color2, 1, 2, TextureUsageBits::Sampled);
                 driver->BindTexture(color3, 1, 3, TextureUsageBits::Sampled);
 
                 driver->Draw(3, 0);
-                if (true)
+                if (false)
                 {
-                    driver->SetRasterState({Culling::BackFace, FrontFace::CounterClockwise, true, false});
+                    driver->SetRasterState({Culling::BackFace, FrontFace::CounterClockwise, true, false, false});
                     driver->BindShaderSet(engine->GetShaderSet("skybox")->GetHandle());
-                    driver->BindTexture(engine->GetDefaultSkybox()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
+                    // driver->BindTexture(engine->GetDefaultSkybox()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
+                    driver->BindTexture(
+                        engine->GetDefaultPrefilteredEnv()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
                     auto skyboxMesh = engine->GetSkyboxMesh();
                     auto meshlet    = skyboxMesh->GetSubmeshes()[0];
                     driver->BindVertexBuffer(skyboxMesh->GetVertexBuffer());
@@ -618,6 +651,7 @@ namespace Zephyr
 
                 passData->color = fg->CreateTexture(colorDesc, true);
                 passData->input = fg->GetBlackboard().Get("postCompute");
+                // passData->input = fg->GetBlackboard().Get("colorOutput");
 
                 fg->Write(passNode, passData->color, TextureUsageBits::ColorAttachment);
                 fg->Read(passNode, passData->input, TextureUsageBits::Sampled);
@@ -634,11 +668,13 @@ namespace Zephyr
             [engine = m_Engine, driver = m_Driver](FrameGraph* fg, ResolvePassData* m_Data, PassRenderTarget rt) {
                 auto dimension  = engine->GetWindowDimension();
                 auto colorInput = static_cast<VirtualResource*>(fg->GetResource(m_Data->input))->GetRHITexture();
+                auto dither     = engine->GetDither()->GetHandle();
 
                 driver->SetViewportScissor({0, dimension.second, (int)dimension.first, -(int)dimension.second},
                                            {0, 0, dimension.first, dimension.second});
-                driver->SetRasterState({Culling::None, FrontFace::CounterClockwise, false, false});
+                driver->SetRasterState({Culling::None, FrontFace::CounterClockwise, false, false, false});
                 driver->BindTexture(colorInput, 0, 0, TextureUsageBits::Sampled);
+                driver->BindTexture(dither, 0, 1, TextureUsageBits::Sampled, SamplerWrap::Repeat);
                 // bind shader
                 driver->BindShaderSet(engine->GetShaderSet("resolve")->GetHandle());
                 driver->BeginRenderPass(rt.rt);
@@ -657,9 +693,7 @@ namespace Zephyr
         auto computePass = fg.AddPass<PostProcessingComputePassData>(
             "post compute",
             [engine = m_Engine](FrameGraph* fg, PassNode* passNode, PostProcessingComputePassData* data) {
-                // data->input = fg->GetBlackboard().Get("bloomDownsampleResult7");
-                data->input = fg->GetBlackboard().Get("bloomComposite");
-                //  data->input  = fg->GetBlackboard().Get("colorOutput");
+                data->input = fg->GetBlackboard().Get("fxaa");
 
                 std::pair<uint32_t, uint32_t> windowDimension = engine->GetWindowDimension();
 
@@ -669,7 +703,7 @@ namespace Zephyr
                 desc.depth     = 1;
                 desc.levels    = 1;
                 desc.samples   = 1;
-                desc.format    = TextureFormat::RGBA16_SRGB;
+                desc.format    = TextureFormat::RGBA16_SFLOAT;
                 desc.usage     = TextureUsageBits::Storage | TextureUsageBits::Sampled;
                 desc.sampler   = SamplerType::Sampler2D;
                 desc.pipelines = PipelineTypeBits::Graphics | PipelineTypeBits::Compute;
@@ -720,7 +754,7 @@ namespace Zephyr
                 desc.height    = windowDimension.second;
                 desc.depth     = 1;
                 desc.levels    = count + 1;
-                desc.format    = TextureFormat::RGBA16_SRGB;
+                desc.format    = TextureFormat::RGBA16_SFLOAT;
                 desc.pipelines = PipelineTypeBits::Compute;
                 desc.sampler   = SamplerType::Sampler2D;
                 desc.usage     = TextureUsageBits::Storage | TextureUsageBits::Sampled;
@@ -732,11 +766,12 @@ namespace Zephyr
                 desc.levels--;
                 data->upsample = fg->CreateTexture(desc);
                 // we dont need mipmaps for the composite image
+                // DON'T USE RGBA8 HERE EVEN IF WE'RE DOING TONEMAPPING IN COMPOSITE
+                // USING RGBA8 WILL CAUSE SEVERE COLOR BANDING ISSUE
                 desc.levels = 1;
+                desc.format = TextureFormat::RGBA16_SFLOAT;
 
                 data->composite = fg->CreateTexture(desc);
-
-                node->SideEffect();
 
                 auto& blackboard = fg->GetBlackboard();
                 blackboard.Set("bloomDownsample", data->downsample);
@@ -798,7 +833,8 @@ namespace Zephyr
                 uint32_t groupCountY = dimension.second % 16 == 0 ? dimension.second / 16 : dimension.second / 16 + 1;
                 driver->Dispatch(groupCountX, groupCountY, 1);
             });
-        //// downsample
+        // downsample
+
         for (uint32_t i = 0; i < m_BloomDownsampleCount; i++)
         {
             struct DownSampleData
@@ -835,17 +871,9 @@ namespace Zephyr
 
                     fg->Read(node, data->input, TextureUsageBits::Sampled);
                     fg->Write(node, data->output, TextureUsageBits::Storage);
-
-                    node->SideEffect();
                 },
-                [i, engine = m_Engine, driver = m_Driver](FrameGraph* fg, DownSampleData* data, PassRenderTarget) {
-                    struct BloomDownsampleConst
-                    {
-                        float mip;
-                    };
-
-                    BloomDownsampleConst c {i};
-
+                [i, self = this, engine = m_Engine, driver = m_Driver](
+                    FrameGraph* fg, DownSampleData* data, PassRenderTarget) {
                     auto dimension = engine->GetWindowDimension();
                     driver->BindShaderSet(engine->GetShaderSet("bloomDownsample")->GetHandle());
 
@@ -856,8 +884,12 @@ namespace Zephyr
                     auto outputRange = static_cast<VirtualResource*>(fg->GetResource(data->output))->GetViewRange();
 
                     driver->BindTexture(output, outputRange, 0, 0, TextureUsageBits::Storage);
-                    driver->BindTexture(input, inputRange, 0, 1, TextureUsageBits::Sampled);
-                    driver->BindConstantBuffer(0, sizeof(float), ShaderStageBits::Compute, &c);
+                    driver->BindTexture(input, inputRange, 0, 1, TextureUsageBits::Sampled, SamplerWrap::ClampToEdge);
+
+                    uint32_t ii[7] = {0, 1, 2, 3, 4, 5, 6};
+                    auto     v     = ii[i];
+
+                    driver->BindConstantBuffer(0, 4, ShaderStageBits::Compute, (void*)&self->ii[i]);
 
                     uint32_t groupCountX = dimension.first % 16 == 0 ? dimension.first / 16 : dimension.first / 16 + 1;
                     uint32_t groupCountY =
@@ -918,8 +950,6 @@ namespace Zephyr
                     fg->Read(node, data->input1, TextureUsageBits::Sampled);
 
                     fg->Write(node, data->output, TextureUsageBits::Storage);
-
-                    node->SideEffect();
                 },
                 [count = m_BloomDownsampleCount - 1, i = i, engine = m_Engine, driver = m_Driver](
                     FrameGraph* fg, UpSampleData* data, PassRenderTarget) {
@@ -936,8 +966,8 @@ namespace Zephyr
                     auto outputRange = static_cast<VirtualResource*>(fg->GetResource(data->output))->GetViewRange();
 
                     driver->BindTexture(output, outputRange, 0, 0, TextureUsageBits::Storage);
-                    driver->BindTexture(input1, inputRange1, 0, 1, TextureUsageBits::Sampled);
-                    driver->BindTexture(input0, inputRange0, 0, 2, TextureUsageBits::Sampled);
+                    driver->BindTexture(input1, inputRange1, 0, 1, TextureUsageBits::Sampled, SamplerWrap::ClampToEdge);
+                    driver->BindTexture(input0, inputRange0, 0, 2, TextureUsageBits::Sampled, SamplerWrap::ClampToEdge);
 
                     uint32_t groupCountX = dimension.first % 16 == 0 ? dimension.first / 16 : dimension.first / 16 + 1;
                     uint32_t groupCountY =
@@ -971,7 +1001,7 @@ namespace Zephyr
                 desc.height    = windowDimension.second;
                 desc.depth     = 1;
                 desc.levels    = 1;
-                desc.format    = TextureFormat::RGBA16_SRGB;
+                desc.format    = TextureFormat::RGBA16_SFLOAT;
                 desc.pipelines = PipelineTypeBits::Compute | PipelineTypeBits::Graphics;
                 desc.sampler   = SamplerType::Sampler2D;
                 desc.usage     = TextureUsageBits::Storage | TextureUsageBits::Sampled;
@@ -984,8 +1014,6 @@ namespace Zephyr
                 fg->Read(node, data->original, TextureUsageBits::Sampled);
 
                 fg->Write(node, data->output, TextureUsageBits::Storage);
-
-                node->SideEffect();
             },
             [engine = m_Engine, driver = m_Driver](FrameGraph* fg, FinalCompositeData* data, PassRenderTarget) {
                 auto dimension = engine->GetWindowDimension();
@@ -1003,6 +1031,56 @@ namespace Zephyr
                 driver->BindTexture(output, outputRange, 0, 0, TextureUsageBits::Storage);
                 driver->BindTexture(input0, inputRange0, 0, 1, TextureUsageBits::Sampled);
                 driver->BindTexture(input1, inputRange1, 0, 2, TextureUsageBits::Sampled);
+
+                uint32_t groupCountX = dimension.first % 16 == 0 ? dimension.first / 16 : dimension.first / 16 + 1;
+                uint32_t groupCountY = dimension.second % 16 == 0 ? dimension.second / 16 : dimension.second / 16 + 1;
+
+                driver->Dispatch(groupCountX, groupCountY, 1);
+            });
+    }
+    void Renderer::DispatchFXAACompute(FrameGraph& fg)
+    {
+        struct FXAAData
+        {
+            FrameGraphResourceHandle<FrameGraphTexture> input;
+            FrameGraphResourceHandle<FrameGraphTexture> output;
+        };
+
+        auto fxaa = fg.AddPass<FXAAData>(
+            "fxaa",
+            [engine = m_Engine](FrameGraph* fg, PassNode* node, FXAAData* data) {
+                auto dimension = engine->GetWindowDimension();
+
+                TextureDescription desc {};
+                desc.width     = dimension.first;
+                desc.height    = dimension.second;
+                desc.depth     = 1;
+                desc.levels    = 1;
+                desc.format    = TextureFormat::RGBA16_UNORM;
+                desc.usage     = TextureUsageBits::Storage | TextureUsageBits::Sampled;
+                desc.sampler   = SamplerType::Sampler2D;
+                desc.samples   = 1;
+                desc.pipelines = PipelineTypeBits::Compute | PipelineTypeBits::Graphics;
+
+                data->output = fg->CreateTexture(desc);
+                data->input  = fg->GetBlackboard().Get("bloomComposite");
+
+                fg->Write(node, data->output, TextureUsageBits::Storage);
+                fg->Read(node, data->input, TextureUsageBits::Sampled);
+
+                fg->GetBlackboard().Set("fxaa", data->output);
+            },
+            [engine = m_Engine, driver = m_Driver, self = this](FrameGraph* fg, FXAAData* data, PassRenderTarget) {
+                auto dimension = engine->GetWindowDimension();
+
+                driver->BindShaderSet(engine->GetShaderSet("fxaa")->GetHandle());
+
+                auto output = static_cast<VirtualResource*>(fg->GetResource(data->output))->GetRHITexture();
+                auto input  = static_cast<VirtualResource*>(fg->GetResource(data->input))->GetRHITexture();
+
+                driver->BindTexture(output, 0, 0, TextureUsageBits::Storage);
+                driver->BindTexture(input, 0, 1, TextureUsageBits::Sampled);
+                driver->BindConstantBuffer(0, sizeof(FXAAConstant), ShaderStageBits::Compute, &self->m_FXAAConstant);
 
                 uint32_t groupCountX = dimension.first % 16 == 0 ? dimension.first / 16 : dimension.first / 16 + 1;
                 uint32_t groupCountY = dimension.second % 16 == 0 ? dimension.second / 16 : dimension.second / 16 + 1;

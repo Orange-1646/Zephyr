@@ -126,6 +126,9 @@ namespace Zephyr
     ShaderSet* Engine::GetShaderSet(const std::string& name) { return m_ResourceManager.GetShaderSet(name); }
 
     Texture* Engine::GetDefaultSkybox() { return m_ResourceManager.GetDefaultSkybox(); }
+    Texture* Engine::GetDefaultPrefilteredEnv() { return m_ResourceManager.GetDefaultPrefilteredEnv(); }
+    Texture* Engine::GetBRDFLut() { return m_ResourceManager.GetBRDFLut(); }
+    Texture* Engine::GetDither() { return m_ResourceManager.GetDither(); }
     Mesh*    Engine::GetSkyboxMesh() { return m_ResourceManager.GetSkyboxMesh(); }
 
     MaterialInstance* Engine::CreateMaterial(ShadingModel shading)

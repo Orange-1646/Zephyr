@@ -38,9 +38,11 @@ namespace Zephyr
 
         m_WhiteTexture->Destroy(driver);
         m_BlackTexture->Destroy(driver);
+        m_DitherTexture->Destroy(driver);
         // m_DefaultSkybox->Destroy(driver);
         delete m_WhiteTexture;
         delete m_BlackTexture;
+        delete m_DitherTexture;
         // delete m_DefaultSkybox;
 
         for (auto& texture : m_Textures)
@@ -113,8 +115,8 @@ namespace Zephyr
         m_ShaderSets.insert({"deferredLighting", dlShader});
 
         // cascade shadow
-        shaderDesc.vertex   = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/cascadeShadow.vert.spv"));
-        shaderDesc.fragment = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/cascadeShadow.frag.spv"));
+        shaderDesc.vertex     = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/cascadeShadow.vert.spv"));
+        shaderDesc.fragment   = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/cascadeShadow.frag.spv"));
         shaderDesc.vertexType = VertexType::Static;
 
         auto shadowShader = new ShaderSet(shaderDesc, driver);
@@ -137,7 +139,7 @@ namespace Zephyr
         shaderDesc.pipeline = PipelineTypeBits::Compute;
         shaderDesc.compute  = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/bloomPrefilter.comp.spv"));
 
-        auto bloomPrefilterShader     = new ShaderSet(shaderDesc, driver);
+        auto bloomPrefilterShader = new ShaderSet(shaderDesc, driver);
         m_ShaderSets.insert({"bloomPrefilter", bloomPrefilterShader});
 
         // bloom downsample
@@ -160,6 +162,13 @@ namespace Zephyr
 
         auto bloomCompositeShader = new ShaderSet(shaderDesc, driver);
         m_ShaderSets.insert({"bloomComposite", bloomCompositeShader});
+
+        // fxaa
+        shaderDesc.pipeline = PipelineTypeBits::Compute;
+        shaderDesc.compute  = LoadShaderFromFile(Path::GetFilePath("/asset/shader/spv/fxaa.comp.spv"));
+
+        auto fxaaShader = new ShaderSet(shaderDesc, driver);
+        m_ShaderSets.insert({"fxaa", fxaaShader});
 
         // resolve
         shaderDesc.pipeline   = PipelineTypeBits::Graphics;
@@ -256,8 +265,8 @@ namespace Zephyr
                 auto& constantBlock1  = litMaterial->m_ConstantBlockDescriptors[0];
                 constantBlock1.name   = "materialUniforms";
                 constantBlock1.offset = 64;
-                constantBlock1.size   = 9 * 4;
-                constantBlock1.members.resize(5);
+                constantBlock1.size   = 10 * 4;
+                constantBlock1.members.resize(6);
                 constantBlock1.stage = ShaderStageBits::Fragment;
                 // albedo
                 auto& block1Member0  = constantBlock1.members[0];
@@ -274,7 +283,7 @@ namespace Zephyr
                 block1Member2.name   = "emission";
                 block1Member2.size   = 3 * 4;
                 block1Member2.offset = 4 * 4;
-                
+
                 // roughness
                 auto& block1Member3  = constantBlock1.members[3];
                 block1Member3.name   = "roughness";
@@ -285,16 +294,22 @@ namespace Zephyr
                 block1Member4.name   = "useNormalMap";
                 block1Member4.size   = 4;
                 block1Member4.offset = 8 * 4;
+                // receive shadow
+                auto& block1Member5  = constantBlock1.members[5];
+                block1Member5.name   = "receiveShadow";
+                block1Member5.size   = 4;
+                block1Member5.offset = 9 * 4;
                 // TODO: this is so ugly
-                float dv[9]                 = {.2f, .3f, .4f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f};
-                constantBlock1.defaultValue = std::vector<uint8_t>(9 * 4);
-                memcpy(constantBlock1.defaultValue.data(), dv, 9 * 4);
+                float dv[10]                = {.2f, .3f, .4f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f};
+                constantBlock1.defaultValue = std::vector<uint8_t>(10 * 4);
+                memcpy(constantBlock1.defaultValue.data(), dv, 10 * 4);
             }
         }
     }
 
     void ResourceManager::InitDefaultTextures(Driver* driver)
     {
+        // single color texture
         {
             TextureDescription desc {};
             desc.width     = 1;
@@ -326,15 +341,76 @@ namespace Zephyr
 
             m_BlackTexture->Update(update, driver);
         }
-
+        // dither texture
         {
+            TextureDescription desc {};
+            desc.width     = 8;
+            desc.height    = 8;
+            desc.depth     = 1;
+            desc.levels    = 1;
+            desc.format    = TextureFormat::R8_UNORM;
+            desc.pipelines = PipelineTypeBits::Graphics || PipelineTypeBits::Compute;
+            desc.sampler   = SamplerType::Sampler2D;
+            desc.samples   = 1;
+            desc.usage     = TextureUsageBits::Sampled;
+            // 8x8 Bayer ordered dithering pattern.  Each input pixel is scaled to the 0..63 range
+            // before looking in this table to determine the action.
+            m_DitherTexture         = new Texture(desc, driver);
+            const uint8_t pattern[] = {0,  32, 8,  40, 2,  34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26,
+                                       12, 44, 4,  36, 14, 46, 6,  38, 60, 28, 52, 20, 62, 30, 54, 22,
+                                       3,  35, 11, 43, 1,  33, 9,  41, 51, 19, 59, 27, 49, 17, 57, 25,
+                                       15, 47, 7,  39, 13, 45, 5,  37, 63, 31, 55, 23, 61, 29, 53, 21};
+
+            TextureUpdateDescriptor update {};
+            update.data  = (void*)pattern;
+            update.layer = 0;
+            update.level = 0;
+            update.depth = 1;
+            update.size  = 8 * 8 * 4;
+
+            m_DitherTexture->Update(update, driver);
+        }
+
+        // default skybox
+        {
+            // std::string view[6] = {Path::GetFilePath("asset/cubemap/Milkyway/px.png"),
+            //                        Path::GetFilePath("asset/cubemap/Milkyway/nx.png"),
+            //                        Path::GetFilePath("asset/cubemap/Milkyway/py.png"),
+            //                        Path::GetFilePath("asset/cubemap/Milkyway/ny.png"),
+            //                        Path::GetFilePath("asset/cubemap/Milkyway/pz.png"),
+            //                        Path::GetFilePath("asset/cubemap/Milkyway/nz.png")};
             std::string view[6] = {Path::GetFilePath("asset/cubemap/Yokohama3/posx.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/negx.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/posy.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/negy.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/posz.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/negz.jpg")};
-            m_DefaultSkybox     = m_TextureLoader.Load(view);
+            // std::string view[6] = {Path::GetFilePath("asset/cubemap/GraceCathedral/posx.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/negx.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/posy.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/negy.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/posz.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/negz.jpg")};
+            // std::string view[6] = {Path::GetFilePath("asset/cubemap/Indoor/posx.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/Indoor/negx.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/Indoor/posy.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/Indoor/negy.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/Indoor/posz.jpg"),
+            //                        Path::GetFilePath("asset/cubemap/Indoor/negz.jpg")};
+            m_DefaultSkybox = m_TextureLoader.Load(view);
+            driver->GenerateMips(m_DefaultSkybox->GetHandle());
+        }
+        {
+            // prefiltered env map
+            m_DefaultPrefilterEnv = m_TextureLoader.LoadEnv(Path::GetFilePath("asset/cubemap/Yokohama3/yokohama.bin"));
+            // m_DefaultPrefilterEnv = m_TextureLoader.LoadEnv(Path::GetFilePath("asset/cubemap/Indoor/Indoor.bin"));
+        }
+        // brdf lut for split sum approximation
+        {
+            std::string view = Path::GetFilePath("asset/ibl/brdf_lut.hdr");
+
+            m_BrdfLut = m_TextureLoader.Load(view, false);
+            driver->GenerateMips(m_BrdfLut->GetHandle());
         }
     }
 
@@ -346,7 +422,13 @@ namespace Zephyr
         return texture;
     }
 
-    Texture* ResourceManager::CreateTexture(const std::string& path) { return m_TextureLoader.Load(path); }
+    Texture* ResourceManager::CreateTexture(const std::string& path, bool srgb, bool flip)
+    {
+        auto texture = m_TextureLoader.Load(path, srgb, flip);
+        m_Engine->GetDriver()->GenerateMips(texture->GetHandle());
+
+        return texture;
+    }
 
     Texture* ResourceManager::CreateTexture(std::string path[6]) { return m_TextureLoader.Load(path); }
 

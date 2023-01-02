@@ -9,4 +9,11 @@ namespace Zephyr
         glm::vec3 radiance;
         bool      castShadow;
     };
+    struct PointLight
+    {
+        glm::vec3  position;
+        float radius;
+        glm::vec3  radiance;
+        float falloff;
+    };
 }

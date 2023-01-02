@@ -38,12 +38,15 @@ void main() {
 
 	// Gram-Schmidt Orthogonalization
 	vec3 t = inTangent;
-	vec3 n = inNormal;
+	vec3 n = normalize(inNormal);
 
 	t = normalize(t - dot(t, n)*n);
-	vec3 b = cross(n, t);
-	tbn = mat3(worldMatrix.worldMatrix) * mat3(t, b, n);
+	vec3 b = normalize(cross(n, t));
 
-	outNormal =  mat3(worldMatrix.worldMatrix) * inNormal;
+	mat3 world = mat3(worldMatrix.worldMatrix);
+
+	tbn = mat3(normalize(world * t), normalize(world * b), normalize(world * n));
+
+	outNormal =  normalize(world * inNormal);
 	outTexCoord = vec2(inTexCoord.x, inTexCoord.y);
 }

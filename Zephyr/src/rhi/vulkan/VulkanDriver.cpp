@@ -9,9 +9,13 @@
 
 namespace Zephyr
 {
-    VulkanDriver::VulkanDriver(Window* window) : m_PipelineCache(this), m_Window(window)
+    VulkanDriver::VulkanDriver(Window* window, bool headless) :
+        m_PipelineCache(this), m_SamplerCache(this), m_Window(window), m_Headless(headless)
     {
-        m_Swapchain = new VulkanSwapchain(window, this);
+        if (!headless)
+        {
+            m_Swapchain = new VulkanSwapchain(window, this);
+        }
 
         m_CommandPoolGraphics.resize(MAX_FRAME_IN_FLIGHT);
         m_CommandPoolCompute.resize(MAX_FRAME_IN_FLIGHT);
@@ -41,8 +45,12 @@ namespace Zephyr
     VulkanDriver::~VulkanDriver()
     {
         vkDeviceWaitIdle(m_Context.Device());
-        m_Swapchain->Shutdown();
+        if (!m_Headless)
+        {
+            m_Swapchain->Shutdown();
+        }
         m_PipelineCache.Shutdown();
+        m_SamplerCache.Shutdown();
         auto device = m_Context.Device();
         // clear resource
         assert(m_ResourceCache.size() == 0);
@@ -167,6 +175,15 @@ namespace Zephyr
             return;
         }
         texture->Update(this, desc);
+    }
+
+    void VulkanDriver::GenerateMips(Handle<RHITexture> handle) {
+        auto texture = GetResource<VulkanTexture>(handle);
+        if (!texture)
+        {
+            return;
+        }
+        texture->GenerateMips(this);
     }
 
     void VulkanDriver::DestroyBuffer(Handle<RHIBuffer> handle)
@@ -411,6 +428,13 @@ namespace Zephyr
             case BufferUsageBits::Storage:
                 m_PipelineCache.BindStorageBuffer(buffer, set, binding);
                 break;
+            case BufferUsageBits::Uniform:
+                m_PipelineCache.BindUniformBuffer(buffer, set, binding);
+                break;
+            case BufferUsageBits::UniformDynamic:
+                m_PipelineCache.BindUniformBufferDynamic(
+                    buffer, set, binding, GetResource<VulkanBuffer>(buffer)->GetOffset(m_CurrentFrameIndex));
+                break;
             default:
                 assert(false);
         }
@@ -420,27 +444,32 @@ namespace Zephyr
                                    const ViewRange&   range,
                                    uint32_t           set,
                                    uint32_t           binding,
-                                   TextureUsage       usage)
+                                   TextureUsage       usage,
+                                   SamplerWrap        addressMode)
     {
         VkCommandBuffer cb;
         switch (usage)
         {
             case TextureUsageBits::SampledDepthStencil:
             case TextureUsageBits::Sampled:
-                m_PipelineCache.BindSampler2D(texture, range, set, binding);
+                m_PipelineCache.BindSampler2D(texture, range, set, binding, addressMode);
                 break;
             case TextureUsageBits::Storage:
-                m_PipelineCache.BindStorageImage(texture, range, set, binding);
+                m_PipelineCache.BindStorageImage(texture, range, set, binding, addressMode);
                 break;
             default:
                 assert(false);
         }
     }
 
-    void VulkanDriver::BindTexture(Handle<RHITexture> texture, uint32_t set, uint32_t binding, TextureUsage usage)
+    void VulkanDriver::BindTexture(Handle<RHITexture> texture,
+                                   uint32_t           set,
+                                   uint32_t           binding,
+                                   TextureUsage       usage,
+                                   SamplerWrap        addressMode)
     {
         ViewRange defaultRange = {0, ALL_LAYERS, 0, ALL_LEVELS};
-        BindTexture(texture, defaultRange, set, binding, usage);
+        BindTexture(texture, defaultRange, set, binding, usage, addressMode);
     }
 
     void VulkanDriver::BindConstantBuffer(uint32_t offset, uint32_t size, ShaderStage stage, void* data)
@@ -534,9 +563,9 @@ namespace Zephyr
         }
         VkSamplerCreateInfo createInfo {};
         createInfo.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         createInfo.minFilter    = VK_FILTER_LINEAR;
         createInfo.magFilter    = VK_FILTER_LINEAR;
         createInfo.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -546,6 +575,8 @@ namespace Zephyr
 
         return m_DefaultSampler;
     }
+
+    VkSampler VulkanDriver::GetSampler(SamplerWrap addressMode) { return m_SamplerCache.GetSampler(addressMode); }
 
     void VulkanDriver::SubmitJobCompute(bool synchronize)
     {
@@ -774,7 +805,10 @@ namespace Zephyr
         return m_CurrentCommandBufferCompute;
     }
 
-    void VulkanDriver::SetupBarrier(Handle<RHITexture> texture, const ViewRange& range, TextureUsage nextUsage, PipelineType pipeline)
+    void VulkanDriver::SetupBarrier(Handle<RHITexture> texture,
+                                    const ViewRange&   range,
+                                    TextureUsage       nextUsage,
+                                    PipelineType       pipeline)
     {
         VkCommandBuffer cb = VK_NULL_HANDLE;
 
@@ -791,7 +825,14 @@ namespace Zephyr
         auto vkTexture = GetResource<VulkanTexture>(texture);
 
         // FIXME: this should not set all layers and all levels. the function should accept layer and level as parameter
-        vkTexture->TransitionLayout(cb, 0, range.baseLayer, range.layerCount, range.baseLevel, range.levelCount, VulkanUtil::GetImageLayoutFromUsage(nextUsage), pipeline);
+        vkTexture->TransitionLayout(cb,
+                                    0,
+                                    range.baseLayer,
+                                    range.layerCount,
+                                    range.baseLevel,
+                                    range.levelCount,
+                                    VulkanUtil::GetImageLayoutFromUsage(nextUsage),
+                                    pipeline);
         // EndSingleTimeCommandBuffer(cb);
     }
 

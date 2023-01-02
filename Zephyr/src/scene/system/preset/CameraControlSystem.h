@@ -7,6 +7,18 @@ namespace Zephyr
     class Engine;
     class Entity;
 
+    enum CameraAction: uint32_t
+    {
+        Forward = 1,
+        Back = Forward << 1,
+        Left = Back << 1,
+        Right = Left << 1,
+    };
+
+    using CameraActionKey = uint32_t;
+
+    static constexpr CameraActionKey completeAction = 0xFFFFFFFF;
+
     SYSTEM(CameraControlSystem)
     {
     public:
@@ -17,6 +29,7 @@ namespace Zephyr
         void Shutdown() override {}
 
     private:
+        CameraActionKey m_ActionKey = 0;
 
         double m_CameraAngularMovementX = 0.;
         double m_CameraAngularMovementY = 0.;

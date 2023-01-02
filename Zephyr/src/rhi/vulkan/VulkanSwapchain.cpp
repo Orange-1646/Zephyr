@@ -111,8 +111,8 @@ namespace Zephyr
         m_SurfaceFormats.resize(count);
         vkGetPhysicalDeviceSurfaceFormatsKHR(m_Context->m_PhysicalDevice, m_Surface, &count, m_SurfaceFormats.data());
 
-        // TODO: we could use a better surface format selection method
-        m_SelectedSurfaceFormat = m_SurfaceFormats[0];
+            // TODO: we could use a better surface format selection method
+            m_SelectedSurfaceFormat = m_SurfaceFormats[0];
     }
 
     void VulkanSwapchain::CreateSwapchain(uint32_t width, uint32_t height)

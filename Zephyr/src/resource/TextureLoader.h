@@ -14,8 +14,9 @@ namespace Zephyr
         TextureLoader(ResourceManager* manager);
         ~TextureLoader();
 
-        Texture* Load(const std::string& path);
+        Texture* Load(const std::string& path, bool srgb = false, bool flip = true);
         Texture* Load(std::string path[6]);
+        Texture* LoadEnv(const std::string& path);
     private:
         ResourceManager* m_Manager;
         std::unordered_map<std::string, Texture*> m_TextureCache;

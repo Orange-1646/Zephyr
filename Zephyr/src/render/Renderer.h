@@ -6,7 +6,7 @@
 
 namespace Zephyr
 {
-
+    inline constexpr uint32_t MAX_POINT_LIGHT_COUNT = 1000;
     class Engine;
     class Driver;
     class Mesh;
@@ -16,10 +16,11 @@ namespace Zephyr
 
     struct SceneRenderData
     {
-        std::vector<Mesh*>     meshes;
-        std::vector<glm::mat4> transforms;
-        DirectionalLight       light;
-        Camera                 camera;
+        std::vector<Mesh*>      meshes;
+        std::vector<glm::mat4>  transforms;
+        DirectionalLight        light;
+        Camera                  camera;
+        std::vector<PointLight> pointLights;
     };
 
     struct SceneRenderUnit
@@ -31,6 +32,12 @@ namespace Zephyr
         uint32_t          indexCount;
         glm::mat4         transform;
         MaterialInstance* material;
+    };
+
+    struct PointLightShaderData
+    {
+        PointLight pointLights[MAX_POINT_LIGHT_COUNT];
+        uint32_t   activePointLight;
     };
 
     struct GlobalRenderShaderData
@@ -52,6 +59,13 @@ namespace Zephyr
         glm::vec4 cascadeSphereInfo[4];
     };
 
+    struct FXAAConstant
+    {
+        float contrastThreshold = 0.0;
+        float relativeThreshold = 0.0;
+        float sharpness         = .1;
+    };
+
     class Renderer
     {
     public:
@@ -64,6 +78,7 @@ namespace Zephyr
     private:
         void PrepareScene();
         void SetupGlobalRenderData();
+        void SetupPointLightData();
         void PrepareCascadedShadowData();
 
         void DrawShadowMap(FrameGraph& fg);
@@ -72,6 +87,7 @@ namespace Zephyr
         void DrawResolve(FrameGraph& fg);
         void DispatchPostProcessingCompute(FrameGraph& fg);
         void DispatchBloomCompute(FrameGraph& fg);
+        void DispatchFXAACompute(FrameGraph& fg);
 
     private:
         Engine*         m_Engine;
@@ -80,13 +96,19 @@ namespace Zephyr
 
         std::vector<SceneRenderUnit> m_SceneRenderUnit;
 
-        Buffer*                m_GlobalRingBuffer;
+        Buffer*                m_GlobalRingBuffer = nullptr;
         GlobalRenderShaderData m_GlobalShaderData = {};
+        Buffer*                m_PointLightBuffer = nullptr;
+        PointLightShaderData   m_PointLightData   = {};
 
         RenderResourceManager m_Manager;
 
         float    m_CascadeTransitionScale = .3;
         uint32_t m_ShadowMapResolution    = 2048;
         uint32_t m_BloomDownsampleCount   = 7;
+        uint32_t ii[7]                    = {0, 1, 2, 3, 4, 5, 6};
+
+        // the smaller the threshold is, the more we do fxaa->better result, slower performance
+        FXAAConstant m_FXAAConstant {};
     };
 } // namespace Zephyr

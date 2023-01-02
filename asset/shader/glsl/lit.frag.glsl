@@ -5,6 +5,7 @@
 #define M_PI 3.1415926535897932384626433832795
 const float Epsilon = 0.00001;
 const float ShadowBias = 0.002;
+#define MAX_POINT_LIGHT_COUNT 1000
 
 layout(location = 0) in vec3 normal;
 layout(location = 1) in vec2 uv;
@@ -30,6 +31,16 @@ layout(set = 0, binding = 0) readonly buffer GlobalRenderData {
 
 layout(set = 0, binding = 1) uniform samplerCube skybox;
 layout(set = 0, binding = 2) uniform sampler2DArray shadowMap;
+struct PointLight {
+	vec3 position;
+	float radius;
+	vec3 radiance;
+	float falloff;
+};
+layout(set = 0, binding = 3) uniform PointLightData {
+	PointLight lights[MAX_POINT_LIGHT_COUNT];
+	uint lightCount;
+} u_PointLights;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoMap;
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
@@ -45,6 +56,16 @@ layout(push_constant, std140) uniform Material
 	float Roughness;
 	float UseNormalMap;
 } materialUniforms;
+
+struct PBRParameters {
+	vec3 albedo;
+	vec3 position;
+	float metalness;
+	vec3 normal;
+	float roughness;
+	vec3 view;
+	float NoV;
+};
 
 vec3 F_Schlick(vec3 f0, float VoH) {
 	return f0 + (1. - f0) * pow(clamp(1. - VoH, 0., 1.), 5.);
@@ -225,6 +246,86 @@ float PCSS(vec3 shadowCoords, float bias, float uvLightSize) {
 	return NV_PCF_DirectionalLight(shadowCoords, uvRadius, bias);
 }
 
+vec3 CalculatePointLight(PBRParameters params) {
+
+	vec3 color = vec3(0.);
+
+	for(uint i = 0; i < u_PointLights.lightCount; i++) {
+//	for(uint i = 0; i < 1; i++) {
+		PointLight light = u_PointLights.lights[i];
+
+		vec3 albedo =  params.albedo;
+		float metalness = params.metalness;
+		float roughness = params.roughness;
+		vec3 position = params.position;
+
+		vec3 ray = light.position - position;
+
+//		float lightDistance = length(light.position - position);
+//		float lightDistance = 2;
+
+//		float attenuation = 1 / (1 + 2 / light.radius * lightDistance + (lightDistance * lightDistance / light.radius * light.radius));
+
+//		float attenuation = clamp(1.0 - (lightDistance * lightDistance) / (light.radius * light.radius), 0.0, 1.0);
+//		attenuation *= mix(attenuation, 1.0, light.falloff);
+//
+//		float attenuation =  1.0 / (1. + .09 * lightDistance + 
+//    		    .032 * (lightDistance * lightDistance));
+
+//		float denom = lightDistance / light.radius + 1.;
+//		float attenuation = 1. / (denom * denom);
+//		attenuation = (attenuation - light.falloff) / (1. - light.falloff);
+//		attenuation = max(attenuation, 0.);
+//
+
+		float distanceSqr = max(dot(ray, ray), 0.00001);
+		float rangeAttenuation = clamp(1.0 - (distanceSqr * distanceSqr / light.radius/ light.radius/ light.radius/ light.radius), 0., 1.);
+		rangeAttenuation *= rangeAttenuation;
+		float attenuation = rangeAttenuation;
+
+		vec3 radiance = light.radiance * attenuation;
+
+
+		// normal
+		vec3 n = params.normal;
+		// inverse light
+		vec3 l = normalize(light.position - position);
+		// view/eye vector
+		vec3 v = normalize(globalRenderData.eye);
+		// half vector of light and view
+		vec3 h = normalize(l + v);
+
+		float NoH = max(dot(n, h), 0.);
+		float NoV = params.NoV;
+		float NoL = max(dot(n, l), 0.);
+		float VoH = max(dot(v, h), 0.);
+
+		// conductor doesn't have diffuse effect
+		vec3 diffuseColor =  albedo;
+
+		// Fresnel factor at incidence angle differs between dielectric and conductor
+		// reflectance of conductor is chromatic, determined by it's albedo(reflectance)
+		// reflectance of dielectric is achromatic, generally speaking 0.04 is good enough for most of the material
+		vec3 f0 = dielectricReflectance * (1. - metalness) + albedo * metalness;
+
+		// fresnel term for specular
+		// this is also used to determine the weight of diffuse brdf and specular brdf
+		vec3 f_Schlick = F_Schlick(f0, VoH);
+
+		// cook-torrance microfacet specular brdf: NormalDistribution * GeometryOcclusion * Fresnel
+		vec3 f_Specular = D_GGX(roughness, NoH) * V_SmithGGXCorrelated(NoV, NoL, roughness) * f_Schlick;
+		// lambertian diffuse brdf
+		vec3 f_Diffuse = Fd_Lambertian() * diffuseColor;
+
+		vec3 kd = (1. - f_Schlick) * (1. - metalness);
+
+		color += (kd * f_Diffuse + f_Specular) * radiance * NoL;
+	}
+
+	return max(vec3(0.), color);
+}
+
+
 void main() {
 
 //------------------------------------------------------------------------------------------------------
@@ -237,20 +338,34 @@ void main() {
 
 	roughness = clamp(roughness, .05, 1.);
 	// normal
-	vec3 n = normalize( normalize(texture(normalMap, uv) * 2. - 1.).xyz).xyz * materialUniforms.UseNormalMap + (1. - materialUniforms.UseNormalMap) * normal;
+	vec3 n = normalize(tbn * normalize( normalize(texture(normalMap, uv) * 2. - 1.).xyz).xyz * materialUniforms.UseNormalMap + (1. - materialUniforms.UseNormalMap) * normal);
 
 	// inverse light
 	vec3 l = normalize(-globalRenderData.directionalLightDirection);
 	// view/eye vector
-	vec3 v = normalize(globalRenderData.eye);
+	vec3 v = normalize(globalRenderData.eye - viewPos.xyz);
 	// half vector of light and view
 	vec3 h = normalize(l + v);
 
-	float NoH = max(dot(n, h), 0.);
-	float NoV = max(dot(n, v), 0.);
-	float NoL = max(dot(n, l), 0.);
-	float VoH = max(dot(v, h), 0.);
+    float NoV = abs(dot(n, v)) + 1e-5;
+    float NoL = clamp(dot(n, l), 0.0, 1.0);
+    float NoH = clamp(dot(n, h), 0.0, 1.0);
+    float LoH = clamp(dot(l, h), 0.0, 1.0);
 
+//		float NoH = max(dot(n, h), 0.);
+//	float NoV = clamp(dot(n, v) + 1e-5, 0, 1.);
+//	float NoL = clamp(dot(n, l) + 1e-5, 0, 1.);
+//	float VoH = max(dot(v, h), 0.);
+
+
+	PBRParameters params;
+	params.albedo = albedo;
+	params.position = viewPos.xyz;
+	params.metalness = metalness;
+	params.normal = n;
+	params.roughness = roughness;
+	params.view = v;
+	params.NoV = NoV;
 	// conductor doesn't have diffuse effect
 	vec3 diffuseColor =  albedo.rgb;
 
@@ -261,7 +376,7 @@ void main() {
 
 	// fresnel term for specular
 	// this is also used to determine the weight of diffuse brdf and specular brdf
-	vec3 f_Schlick = F_Schlick(f0, VoH);
+	vec3 f_Schlick = F_Schlick(f0, LoH);
 
 	// cook-torrance microfacet specular brdf: NormalDistribution * GeometryOcclusion * Fresnel
 	vec3 f_Specular = D_GGX(roughness, NoH) * V_SmithGGXCorrelated(NoV, NoL, roughness) * f_Schlick;
@@ -320,9 +435,9 @@ void main() {
 //---------------------------------------------------------------------------------------------------------------------
 
 	// final shading
-	color = vec4(((kd * f_Diffuse + f_Specular) * globalRenderData.directionalLightRadiance * NoL + emission) * shadow, 1.);
+	color = vec4(((kd * f_Diffuse + f_Specular) * globalRenderData.directionalLightRadiance * NoL + emission), 1.);
 
-
+//	color += vec4(CalculatePointLight(params), 1.);
 //	if(color.x > 1.) {
 //		color = vec4(1., 0., 0., 1.);
 //	}

@@ -3,7 +3,7 @@
 
 namespace Zephyr
 {
-    using ComponentId = uint32_t;
+    using ComponentId = uint64_t;
     constexpr uint32_t InvalidComponentId = 0;
 
     struct ComponentBase

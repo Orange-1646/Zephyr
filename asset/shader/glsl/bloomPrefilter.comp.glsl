@@ -18,7 +18,6 @@ vec3 Filter(vec3 color) {
 	soft = soft * soft * (prefilterData.data.w + EPSILON);
 
 	float contrib = max(soft, brightness - prefilterData.data.x) / max(brightness, EPSILON);
-
 	return color * contrib;
 }
 

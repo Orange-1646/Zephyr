@@ -68,7 +68,7 @@ namespace Zephyr
                 size = type.array[0];
             }
 
-            m_PipelineLayoutDescriptor.Set(set, binding, size, DescriptorType::UniformBuffer, stage);
+            m_PipelineLayoutDescriptor.Set(set, binding, size, DescriptorType::UniformBufferDynamic, stage);
         }
         // assume that storage buffer at set 0 binding 0 is dynamic. need to find a more flexible way
         for (auto& ssbo : resource.storage_buffers)

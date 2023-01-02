@@ -1,6 +1,7 @@
 #include "RenderSystem.h"
 #include "engine/Engine.h"
 #include "scene/component/DirectionalLightComponent.h"
+#include "scene/component/PointLightComponent.h"
 #include "scene/component/MainCameraComponent.h"
 #include "scene/component/MeshComponent.h"
 #include "scene/component/TransformComponent.h"
@@ -10,7 +11,7 @@
 namespace Zephyr
 {
     RenderSystem::RenderSystem(Engine* engine):
-        System(engine, {}, { DirectionalLightComponent::ID, MainCameraComponent::ID, MeshComponent::ID }, {}),
+        System(engine, {}, { PointLightComponent::ID, DirectionalLightComponent::ID, MainCameraComponent::ID, MeshComponent::ID }, {}),
         m_Renderer(engine)
     {}
 
@@ -24,9 +25,16 @@ namespace Zephyr
             {
                 scene.light = entity->GetComponent<DirectionalLightComponent>()->light;
             }
+            if (entity->HasComponent<PointLightComponent>())
+            {
+                scene.pointLights.push_back(entity->GetComponent<PointLightComponent>()->light);
+            }
             if (entity->HasComponent<MainCameraComponent>())
             {
-                scene.camera = entity->GetComponent<MainCameraComponent>()->camera;
+                auto camera  = entity->GetComponent<MainCameraComponent>();
+                camera->camera.Update();
+                scene.camera = camera->camera;
+                //scene.camera.Update();
             }
             if (entity->HasComponent<MeshComponent>())
             {
@@ -40,6 +48,7 @@ namespace Zephyr
                     scene.transforms.push_back(glm::mat4(1.));
                 }
             }
+
         }
 
         m_Renderer.Render(scene);

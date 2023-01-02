@@ -24,7 +24,18 @@ namespace Zephyr
 
     void PassNode::Devirtualize(RenderResourceManager* manager)
     {
-
+        if (m_Pass->GetName() == "bloom compute prefilter")
+        {
+            int a = 0;
+        }
+        if (m_Pass->GetName() == "shadow cascade 0")
+        {
+            int a = 0;
+        }
+        if (m_Pass->GetName() == "lighting")
+        {
+            int a = 0;
+        }
         for (auto& resource : m_Devirtualize)
         {
             resource->Devirtualize(manager);
@@ -79,6 +90,10 @@ namespace Zephyr
             int a = 0;
         }
         if (m_Pass->GetName() == "shadow cascade 0")
+        {
+            int a = 0;
+        }
+        if (m_Pass->GetName() == "lighting")
         {
             int a = 0;
         }

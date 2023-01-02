@@ -29,5 +29,5 @@ void main() {
 	// make sure skybox always have z set to 1 to avoid overdraw
 	gl_Position = position.xyww;
 
-	outDirection = normalize(vec3(inPosition.x, inPosition.y, inPosition.z));
+	outDirection = normalize(vec3(-inPosition.x, inPosition.y, inPosition.z));
 }

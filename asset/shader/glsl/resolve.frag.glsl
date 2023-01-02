@@ -3,8 +3,14 @@
 layout(location = 0) in vec2 uv;
 
 layout(set = 0, binding = 0) uniform sampler2D colorInput;
+layout(set = 0, binding = 1) uniform sampler2D dither;
 
 layout(location = 0) out vec4 color;
+
+
+vec3 GammaCorrection(vec3 color, float gamma) {
+	return pow(color, vec3(1.0f / gamma));
+}
 
 vec3 ACESTonemap(vec3 color)
 {
@@ -21,28 +27,18 @@ vec3 ACESTonemap(vec3 color)
 	vec3 v = m1 * color;
 	vec3 a = v * (v + 0.0245786) - 0.000090537;
 	vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
+
 	return clamp(m2 * (a / b), 0.0, 1.0);
 }
 
-vec3 GammaCorrection(vec3 color, float gamma) {
-	return pow(color, vec3(1.0f / gamma));
-}
+float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
 
 
 void main() {
-	
-	vec3 c = texture(colorInput, uv).rgb;
 
-	if(c.r > 1.) {
-		color = vec4(1., 0., 0., 1.);
-	} else {
-	color = vec4(vec3(0.), 1.);
-	}
-
-	vec3 hdrColor = texture(colorInput, uv).rgb;
-
-	color = vec4(GammaCorrection(ACESTonemap(hdrColor), 2.2), 1.);
-//	color = vec4(0.);
+	// dithering to prevent color banding
+//	float dither = (rand(uv) - 0.5) / 255.0;
+	color = vec4(GammaCorrection(texture(colorInput, uv).rgb, 2.2),1.);
+	color += vec4(texture(dither, gl_FragCoord.xy / 8.0).r / 32.0 - (1.0 / 128.0));
 //	color = vec4(texture(colorInput, uv).rgb, 1.);
-//	color = vec4(uv, 1., 1.);
 }

@@ -15,7 +15,7 @@ layout(set = 1, binding = 3) uniform sampler2D emissionMap;
 layout(location = 0) out vec4 outAlbedoMetalness;
 layout(location = 1) out vec4 outNormalRoughness;
 layout(location = 2) out vec4 outPositionOcclusion;
-layout(location = 3) out vec4 outEmission;
+layout(location = 3) out vec4 outEmissionShadow;
 
 
 layout(push_constant, std140) uniform Material
@@ -26,6 +26,7 @@ layout(push_constant, std140) uniform Material
 	vec3 Emission;
 	float Roughness;
 	float UseNormalMap;
+	float ReceiveShadow;
 } materialUniforms;
 
 void main() {
@@ -38,11 +39,14 @@ void main() {
 	float metalness = materialUniforms.Metalness * texture(metallicRoughnessMap, uv).b;
 	float roughness = materialUniforms.Roughness * texture(metallicRoughnessMap, uv).g;
 	
-	roughness = clamp(roughness, .05, 1.);
-	vec3 n = normalize( normalize(texture(normalMap, uv) * 2. - 1.).xyz).xyz * materialUniforms.UseNormalMap + (1. - materialUniforms.UseNormalMap) * normal;
+	roughness = clamp(roughness, .005, 1.);
+	vec3 n = normalize(normalize(tbn * normalize(texture(normalMap, uv) * 2. - 1.).xyz).xyz * materialUniforms.UseNormalMap + (1. - materialUniforms.UseNormalMap) * normal);
+	n = normalize(n);
 	
 	outAlbedoMetalness = vec4(albedo, metalness);
-	outNormalRoughness = vec4(n, roughness);
-	outPositionOcclusion = vec4(viewPos.xyz, 1.);
-	outEmission = vec4(emission, 1.);
+	outNormalRoughness = vec4(n, roughness * roughness);
+	outPositionOcclusion = vec4(viewPos.xyz/viewPos.w, 1.);
+
+
+	outEmissionShadow = vec4(materialUniforms.Emission, materialUniforms.ReceiveShadow);
 }

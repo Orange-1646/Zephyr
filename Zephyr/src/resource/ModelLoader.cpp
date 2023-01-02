@@ -178,7 +178,7 @@ namespace Zephyr
                     parentPath /= std::string(aiTexPath.data);
                     std::string texturePath = parentPath.string();
 
-                    materialInstance->SetTexture("albedoMap", m_ResourceManager->CreateTexture(texturePath));
+                    materialInstance->SetTexture("albedoMap", m_ResourceManager->CreateTexture(texturePath, true));
                     materialInstance->SetConstantBlock("albedo", glm::vec3(1.));
                 }
                 else

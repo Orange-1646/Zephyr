@@ -38,9 +38,20 @@ namespace Zephyr
         auto rotation = glm::mat3(glm::eulerAngleYXZ(yaw, pitch, 0.f));
 
         postTransformDirection = rotation * direction;
-
-        view = glm::lookAt(position, position + postTransformDirection, up);
     }
+    void Camera::Forward(float dist) { position += glm::normalize(postTransformDirection) * dist; }
+    void Camera::Back(float dist) { position -= glm::normalize(postTransformDirection) * dist; }
+    void Camera::Left(float dist)
+    {
+        glm::vec3 right = glm::normalize(glm::cross(postTransformDirection, up));
+        position -= right * dist;
+    }
+    void Camera::Right(float dist)
+    {
+        glm::vec3 right = glm::normalize(glm::cross(postTransformDirection, up));
+        position += right * dist;
+    }
+    void          Camera::Update() { view = glm::lookAt(position, position + postTransformDirection, up); }
     CameraCorners Camera::Corners()
     {
         CameraCorners corners;

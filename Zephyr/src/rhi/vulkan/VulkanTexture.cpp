@@ -46,8 +46,9 @@ namespace Zephyr
             }
             if (desc.sampler == SamplerType::SamplerCubeMap)
             {
-                createInfo.arrayLayers = 6;
-                createInfo.flags       = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+                createInfo.extent.depth = 1;
+                createInfo.arrayLayers  = 6;
+                createInfo.flags        = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
             }
             if (desc.sampler == SamplerType::SamplerCubeMapArray)
             {
@@ -126,6 +127,52 @@ namespace Zephyr
         }
     }
 
+    void VulkanTexture::GenerateMips(VulkanDriver* driver)
+    {
+        if (m_Description.levels <= 1)
+        {
+            return;
+        }
+
+        auto cb = driver->BeginSingleTimeCommandBuffer();
+        for (uint32_t i = 1; i < m_Description.levels; i++)
+        {
+            int srcWidth  = m_Description.width / pow(2, i - 1);
+            int srcHeight = m_Description.height / pow(2, i - 1);
+            int dstWidth  = srcWidth / 2;
+            int dstHeight = srcHeight / 2;
+
+            TransitionLayout(cb, 1, 0, ALL_LAYERS, i - 1, 1, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            TransitionLayout(cb, 1, 0, ALL_LAYERS, i, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+            VkImageBlit blit {};
+            blit.srcOffsets[0]                 = {0, 0, 0};
+            blit.srcOffsets[1]                 = {srcWidth, srcHeight, 1};
+            blit.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.srcSubresource.mipLevel       = i - 1;
+            blit.srcSubresource.baseArrayLayer = 0;
+            blit.srcSubresource.layerCount     = GetLayerCount();
+            blit.dstOffsets[0]                 = {0, 0, 0};
+            blit.dstOffsets[1]                 = {dstWidth, dstHeight, 1};
+            blit.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstSubresource.mipLevel       = i;
+            blit.dstSubresource.baseArrayLayer = 0;
+            blit.dstSubresource.layerCount     = GetLayerCount();
+
+            vkCmdBlitImage(cb,
+                           m_Image,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           m_Image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1,
+                           &blit,
+                           VK_FILTER_LINEAR);
+        }
+
+        TransitionLayout(cb, 1, 0, ALL_LAYERS, 0, ALL_LEVELS, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        driver->EndSingleTimeCommandBuffer(cb);
+    }
+
     // TODO: support 3D texture
     void VulkanTexture::Update(VulkanDriver* driver, const TextureUpdateDescriptor& desc)
     {
@@ -150,8 +197,8 @@ namespace Zephyr
         copy.imageOffset.x                   = 0;
         copy.imageOffset.y                   = 0;
         copy.imageOffset.z                   = 0;
-        copy.imageExtent.width               = m_Description.width;
-        copy.imageExtent.height              = m_Description.height;
+        copy.imageExtent.width               = m_Description.width / pow(2, desc.level);
+        copy.imageExtent.height              = m_Description.height / pow(2, desc.level);
         copy.imageExtent.depth               = desc.depth;
 
         auto cb = driver->BeginSingleTimeCommandBuffer();
@@ -173,7 +220,7 @@ namespace Zephyr
                                          PipelineType    pipeline)
     {
         auto transition = VulkanUtil::GetImageTransitionMask(target, pipeline);
-        layerCount      = layerCount == ALL_LAYERS ? m_Description.depth - layer : layerCount;
+        layerCount      = layerCount == ALL_LAYERS ? GetLayerCount() - layer : layerCount;
         levelCount      = levelCount == ALL_LEVELS ? m_Description.levels - level : levelCount;
 
         std::vector<VkImageMemoryBarrier> barriers;
@@ -198,7 +245,7 @@ namespace Zephyr
                     barrier.subresourceRange.layerCount     = 1;
                     barrier.subresourceRange.baseMipLevel   = j;
                     barrier.subresourceRange.levelCount     = 1;
-                    barrier.srcAccessMask               = transition.srcAccessMask;
+                    barrier.srcAccessMask                   = transition.srcAccessMask;
                     barrier.dstAccessMask                   = transition.dstAccessMask;
 
                     SetLayout(i, j, target);
@@ -324,5 +371,22 @@ namespace Zephyr
     VkImageAspectFlags VulkanTexture::GetAspect()
     {
         return VulkanUtil::IsDepthFormat(m_Description.format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+    uint32_t VulkanTexture::GetLayerCount()
+    {
+        if (m_Description.sampler == SamplerType::SamplerCubeMap)
+        {
+            return 6;
+        }
+        if (m_Description.sampler == SamplerType::SamplerCubeMapArray)
+        {
+            return 6 * m_Description.depth;
+        }
+        if (m_Description.sampler == SamplerType::Sampler2D)
+        {
+            return 1;
+        }
+
+        return m_Description.depth;
     }
 } // namespace Zephyr

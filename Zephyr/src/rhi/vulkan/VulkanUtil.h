@@ -98,14 +98,22 @@ namespace Zephyr
         {
             switch (format)
             {
+                case TextureFormat::R8_UNORM:
+                    return VK_FORMAT_R8_UNORM;
                 case TextureFormat::RGBA8_UNORM:
                     return VK_FORMAT_R8G8B8A8_UNORM;
+                case TextureFormat::RGBA8_SNORM:
+                    return VK_FORMAT_R8G8B8A8_SNORM;
                 case TextureFormat::RGBA8_SRGB:
                     return VK_FORMAT_R8G8B8A8_SRGB;
                 case TextureFormat::RGBA16_UNORM:
                     return VK_FORMAT_R16G16B16A16_UNORM;
-                case TextureFormat::RGBA16_SRGB:
+                case TextureFormat::RGBA16_SNORM:
+                    return VK_FORMAT_R16G16B16A16_SNORM;
+                case TextureFormat::RGBA16_SFLOAT:
                     return VK_FORMAT_R16G16B16A16_SFLOAT;
+                case TextureFormat::RGBA32_SFLOAT:
+                    return VK_FORMAT_R32G32B32A32_SFLOAT;
                 case TextureFormat::DEPTH32F:
                     return VK_FORMAT_D32_SFLOAT;
                 case TextureFormat::DEPTH24_STENCIL8:
@@ -186,21 +194,22 @@ namespace Zephyr
             return flag;
         }
 
-        static VulkanTransition GetImageTransitionMask(VkImageLayout target, PipelineType pipeline = PipelineTypeBits::None)
+        static VulkanTransition GetImageTransitionMask(VkImageLayout target,
+                                                       PipelineType  pipeline = PipelineTypeBits::None)
         {
             VulkanTransition transition;
             switch (target)
             {
                 case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-                    transition.srcAccessMask = 0;
+                    transition.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
                     transition.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                    transition.srcStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                    transition.srcStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
                     transition.dstStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
                     break;
                 case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-                    transition.srcAccessMask = 0;
+                    transition.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                     transition.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-                    transition.srcStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                    transition.srcStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
                     transition.dstStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
                     break;
                 case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
@@ -209,9 +218,11 @@ namespace Zephyr
                     transition.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                     transition.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
                     transition.srcStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-                    transition.dstStage = pipeline == PipelineTypeBits::Compute ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT :
+                    transition.dstStage =
+                        pipeline == PipelineTypeBits::Compute ?
+                            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT :
                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-                        ;
+                    ;
                     break;
                     // We support PRESENT as a target layout to allow blitting from the swap chain.
                     // See also SwapChain::makePresentable().
@@ -262,6 +273,10 @@ namespace Zephyr
 
         static VkImageAspectFlags GetAspectMaskFromUsage(TextureUsage usage)
         {
+            if (usage & TextureUsageBits::Storage)
+            {
+                return VK_IMAGE_ASPECT_COLOR_BIT;
+            }
             if (usage & TextureUsageBits::ColorAttachment)
             {
                 return VK_IMAGE_ASPECT_COLOR_BIT;
@@ -359,6 +374,21 @@ namespace Zephyr
             VK_CHECK(vkCreateSemaphore(device, &createInfo, nullptr, &sem), "Semaphore Creation");
 
             return sem;
+        }
+
+        static VkSamplerAddressMode GetAddressMode(SamplerWrap addressMode)
+        {
+            switch (addressMode)
+            {
+                case SamplerWrap::ClampToEdge:
+                    return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+                case SamplerWrap::Repeat:
+                    return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                case SamplerWrap::RepeatMirror:
+                    return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+                default:
+                    assert(false);
+            }
         }
     };
 } // namespace Zephyr

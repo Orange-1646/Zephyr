@@ -62,6 +62,9 @@ namespace Zephyr
         std::pair<uint32_t, uint32_t> GetWindowDimension();
         ShaderSet*                    GetShaderSet(const std::string& name);
         Texture*                      GetDefaultSkybox();
+        Texture*                      GetDefaultPrefilteredEnv();
+        Texture*                      GetBRDFLut();
+        Texture*                      GetDither();
         Mesh*                         GetSkyboxMesh();
         MaterialInstance*             CreateMaterial(ShadingModel shading);
 

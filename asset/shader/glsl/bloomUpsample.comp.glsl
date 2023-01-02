@@ -9,7 +9,7 @@ layout(set = 0, binding = 2) uniform sampler2D tex2;
 // http://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare
 
 vec3 UpsampleTent9(sampler2D tex, float mip, vec2 uv, vec2 texelSize) {
-//	texelSize *= .5;
+//	texelSize *= .8;
 	vec3 A = textureLod(tex, uv, mip).rgb * 4.;
 
 	vec3 B = textureLod(tex, uv + vec2(-1., 1.) * texelSize, mip).rgb;
@@ -41,8 +41,8 @@ void main() {
 	vec2 texSize = textureSize(tex2, 0);
 	vec2 texelSize = 1./texSize;
 	// the upsampled color
-//	vec3 color2 = UpsampleTent9(tex2, 0, texCoords, texelSize);
-	vec3 color2 = textureLod(tex2, texCoords, 0).rgb;
+	vec3 color2 = UpsampleTent9(tex2, 0, texCoords, texelSize);
+//	vec3 color2 = textureLod(tex2, texCoords, 0).rgb;
 	
 	imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(color1 + color2, 1.));
 //	imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(resultSize, 0., 1.));

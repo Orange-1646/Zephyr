@@ -38,6 +38,11 @@ namespace Zephyr
         void LookAt(const glm::vec3& p, const glm::vec3& d, const glm::vec3& u);
 
         void Camera::Rotate(double horizontal, double vertical);
+        void Forward(float dist);
+        void Back(float dist);
+        void Left(float dist);
+        void Right(float dist);
+        void Update();
 
         CameraCorners Corners();
 

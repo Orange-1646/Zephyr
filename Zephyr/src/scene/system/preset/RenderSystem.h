@@ -18,5 +18,6 @@ namespace Zephyr
 
     private:
         Renderer m_Renderer;
+        uint32_t m_MaxPointLights = 1000;
     };
 }

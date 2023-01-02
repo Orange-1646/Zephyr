@@ -98,11 +98,18 @@ namespace Zephyr
     // TODO: add more format and compression format support
     enum class TextureFormat : uint32_t
     {
-        DEFAULT     = 0,
-        RGBA8_UNORM = 1,
+        DEFAULT = 0,
+
+        R8_UNORM = 1,
+
+        RGBA8_UNORM,
+        RGBA8_SNORM,
         RGBA8_SRGB,
         RGBA16_UNORM,
-        RGBA16_SRGB,
+        RGBA16_SNORM,
+        RGBA16_SFLOAT,
+
+        RGBA32_SFLOAT,
 
         DEPTH32F,
         DEPTH24_STENCIL8
@@ -119,7 +126,8 @@ namespace Zephyr
 
     enum class SamplerWrap
     {
-        ClampToEdge = 0,
+        None = 0,
+        ClampToEdge = 1,
         Repeat,
         RepeatMirror
     };
@@ -250,11 +258,12 @@ namespace Zephyr
         FrontFace frontFace;
         bool      depthTestEnabled;
         bool      depthWriteEnabled;
+        bool      enableAlphaBlend = true;
 
         bool operator==(const RasterState& rhs) const
         {
             return rhs.cull == cull && rhs.frontFace == frontFace && depthTestEnabled == rhs.depthTestEnabled &&
-                   depthWriteEnabled == rhs.depthWriteEnabled;
+                   depthWriteEnabled == rhs.depthWriteEnabled && enableAlphaBlend == rhs.enableAlphaBlend;
         }
     };
 } // namespace Zephyr

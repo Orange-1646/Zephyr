@@ -33,7 +33,7 @@ namespace Zephyr
         // create empty texture
         Texture* CreateTexture(const TextureDescription& desc);
         // create samplable texture2d and load image into it
-        Texture* CreateTexture(const std::string& path);
+        Texture* CreateTexture(const std::string& path, bool srgb = false, bool flip = true);
         // create samplable texturecubemap and load image into it
         Texture* CreateTexture(std::string path[6]);
 
@@ -46,9 +46,12 @@ namespace Zephyr
 
         ShaderSet* GetShaderSet(const std::string& name);
 
-        inline Texture* GetWhiteTexture() { return m_WhiteTexture; }
-        inline Texture* GetBlackTexture() { return m_BlackTexture; }
-        inline Texture* GetDefaultSkybox() { return m_DefaultSkybox; }
+        inline Texture* GetWhiteTexture() const { return m_WhiteTexture; }
+        inline Texture* GetBlackTexture() const { return m_BlackTexture; }
+        inline Texture* GetDefaultSkybox() const { return m_DefaultSkybox; }
+        inline Texture* GetDefaultPrefilteredEnv() const { return m_DefaultPrefilterEnv; }
+        inline Texture* GetBRDFLut() const { return m_BrdfLut; }
+        inline Texture* GetDither() const { return m_DitherTexture; }
         inline Mesh*    GetSkyboxMesh() { return m_SkyboxMesh; }
 
     private:
@@ -70,8 +73,11 @@ namespace Zephyr
         Mesh*                                     m_SkyboxMesh = nullptr;
 
         Texture* m_DefaultSkybox = nullptr;
+        Texture* m_DefaultPrefilterEnv = nullptr;
+        Texture* m_BrdfLut             = nullptr;
         Texture* m_WhiteTexture  = nullptr;
         Texture* m_BlackTexture  = nullptr;
+        Texture* m_DitherTexture = nullptr;
 
         ModelLoader   m_ModelLoader;
         TextureLoader m_TextureLoader;

@@ -21,19 +21,31 @@ namespace Zephyr
         TextureFormat GetFormat() override;
 
         void Destroy(VulkanDriver* driver);
+        void GenerateMips(VulkanDriver* driver);
 
         void Update(VulkanDriver* driver, const TextureUpdateDescriptor& desc);
-        void TransitionLayout(VkCommandBuffer cb, uint32_t depth, uint32_t layer, uint32_t layerCount, uint32_t level, uint32_t levelCount, VkImageLayout target, PipelineType pipeline = PipelineTypeBits::None);
+        void TransitionLayout(VkCommandBuffer cb,
+                              uint32_t        depth,
+                              uint32_t        layer,
+                              uint32_t        layerCount,
+                              uint32_t        level,
+                              uint32_t        levelCount,
+                              VkImageLayout   target,
+                              PipelineType    pipeline = PipelineTypeBits::None);
 
         // track the layout of target range
         void SetLayout(uint32_t layer, uint32_t level, VkImageLayout layout);
 
         // get imageview
-        VkImageView GetView(VulkanDriver* driver, const ViewRange& range);
+        VkImageView        GetView(VulkanDriver* driver, const ViewRange& range);
         inline VkImageView GetMainView() { return m_MainView; }
 
-        inline std::pair<uint32_t, uint32_t> GetDimension() { return {m_Description.width, m_Description.height}; }
-        inline TextureUsage                  GetUsage() { return m_Description.usage; }
+        inline std::pair<uint32_t, uint32_t> GetDimension() const
+        {
+            return {m_Description.width, m_Description.height};
+        }
+        inline TextureUsage GetUsage() const { return m_Description.usage; }
+        inline VkImage      GetImage() const { return m_Image; }
 
     private:
         VkImageLayout GetLayout(uint32_t layer, uint32_t level);
@@ -41,6 +53,7 @@ namespace Zephyr
 
         VkImageView        CreateImageView(VulkanDriver* driver, const ViewRange& range);
         VkImageAspectFlags GetAspect();
+        uint32_t           GetLayerCount();
 
     private:
         bool               m_IsExternalImage = false;

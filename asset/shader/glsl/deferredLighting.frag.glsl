@@ -3,8 +3,9 @@
 #version 450 core
 
 #define M_PI 3.1415926535897932384626433832795
+#define MAX_POINT_LIGHT_COUNT 1000
 const float Epsilon = 0.00001;
-const float ShadowBias = 0.002;
+const float ShadowBias = 0.005;
 
 layout(location = 0) in vec2 uv;
 
@@ -25,12 +26,36 @@ layout(set = 0, binding = 0) readonly buffer GlobalRenderData {
 	vec4 cascadeSphereInfo[4];
 } globalRenderData;
 
+struct PointLight {
+	vec3 position;
+	float radius;
+	vec3 radiance;
+	float falloff;
+};
+
 layout(set = 0, binding = 1) uniform sampler2DArray shadowMap;
+layout(set = 0, binding = 2) uniform PointLightData {
+	PointLight lights[MAX_POINT_LIGHT_COUNT];
+	uint lightCount;
+} u_PointLights;
+layout(set = 0, binding = 3) uniform samplerCube specularMap;
+layout(set = 0, binding = 4) uniform sampler2D brdfLut;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoMetalnessMap;
 layout(set = 1, binding = 1) uniform sampler2D normalRoughnessMap;
 layout(set = 1, binding = 2) uniform sampler2D positionOcclusionMap;
-layout(set = 1, binding = 3) uniform sampler2D emissionMap;
+layout(set = 1, binding = 3) uniform sampler2D emissionShadowMap;
+
+
+struct PBRParameters {
+	vec3 albedo;
+	vec3 position;
+	float metalness;
+	vec3 normal;
+	float roughness;
+	vec3 view;
+	float NoV;
+};
 
 vec3 F_Schlick(vec3 f0, float VoH) {
 	return f0 + (1. - f0) * pow(clamp(1. - VoH, 0., 1.), 5.);
@@ -42,17 +67,34 @@ float D_GGX(float roughness, float NoH) {
 	return k * k / M_PI;
 }
 
-float V_SmithGGXCorrelated(float NoV, float NoL, float roughness) {
-	float a2 = roughness * roughness;
-	float GGXV = NoL * sqrt(NoV * NoV * (1. - a2) + a2);
-	float GGXL = NoV * sqrt(NoL * NoL * (1. - a2) + a2);
-	
-	return 0.5 / (GGXV + GGXL);
+float V_SmithGGXCorrelated(float NoV, float NoL, float a) {
+
+    float a2 = a * a;
+    float GGXL = NoV * sqrt((-NoL * a2 + NoL) * NoL + a2);
+    float GGXV = NoL * sqrt((-NoV * a2 + NoV) * NoV + a2);
+    return 0.5 / max((GGXV + GGXL), 1e-5);
 }
 
 float Fd_Lambertian() {
 	return 1. / M_PI;
 }
+
+vec3 FresnelSchlickRoughness(vec3 F0, float cosTheta, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+float Pow5(float x)
+{
+    return (x * x * x * x * x);
+}
+
+
+vec3 F_SchlickR(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0) - F0) * Pow5(1.0 - cosTheta);
+}
+
 
 const vec3 dielectricReflectance = vec3(0.04);
 
@@ -62,15 +104,17 @@ float unpack(vec4 rgbaDepth) {
 }
 
 // 7*7 box filter
-float PCF_Box7x7(vec2 shadowUv, float objectDepth, float bias, uint cascade) {
+float PCF_Box3x3(vec2 shadowUv, float objectDepth, float bias, uint cascade) {
 
-	ivec2 texSize = textureSize(shadowMap, 0).xy;
+	vec2 texSize = textureSize(shadowMap, 0).xy;
+
+	vec2 texelSize = 1. / texSize;
 
 	float percentage = 1.;
 
 	for(float i = -3.; i < 3.; i++) {
 		for(float j = -3.; j < 3.; j++) {
-			vec2 uv = shadowUv + vec2(i / texSize.x, j / texSize.y);
+			vec2 uv = shadowUv + texelSize * vec2(i, j);
 			float sampledDepth = texture(shadowMap, vec3(uv, cascade)).r;
 
 			if(sampledDepth + bias < objectDepth) {
@@ -92,123 +136,149 @@ float HardShadow(vec2 shadowUv, float objectDepth, float bias, uint cascadeLevel
 	return 1.;
 }
 
+vec3 CalculatePointLight(PBRParameters params) {
+
+	vec3 color = vec3(0.);
+	return color;
+
+	for(uint i = 0; i < u_PointLights.lightCount; i++) {
+		PointLight light = u_PointLights.lights[i];
+
+		vec3 albedo =  params.albedo;
+		float metalness = params.metalness;
+		float roughness = params.roughness;
+		vec3 position = params.position;
+
+		vec3 ray = light.position - position;
+
+		float distanceSqr = max(dot(ray, ray), 1e-5);
+		float radiusQuad = light.radius * light.radius * light.radius * light.radius;
+		float rangeAttenuation = clamp(1.0 - (distanceSqr * distanceSqr / radiusQuad), 0., 1.);
+		rangeAttenuation *= rangeAttenuation;
+
+		vec3 radiance = light.radiance * rangeAttenuation;
+
+
+		// normal
+		vec3 n = params.normal;
+		// inverse light
+		vec3 l = normalize(light.position - position);
+		// view/eye vector
+		vec3 v = normalize(globalRenderData.eye);
+		// half vector of light and view
+		vec3 h = normalize(l + v);
+
+		float NoH = max(dot(n, h), 0.);
+		float NoV = params.NoV;
+		float NoL = clamp(dot(n, l) + 1e-5, 0, 1.);
+		float VoH = max(dot(v, h), 0.);
+		float LoH = max(dot(l, h), 0.);
+
+		// conductor doesn't have diffuse effect
+		vec3 diffuseColor =  albedo;
+
+		// Fresnel factor at incidence angle differs between dielectric and conductor
+		// reflectance of conductor is chromatic, determined by it's albedo(reflectance)
+		// reflectance of dielectric is achromatic, generally speaking 0.04 is good enough for most of the material
+		vec3 f0 = dielectricReflectance * (1. - metalness) + albedo * metalness;
+
+		// fresnel term for specular
+		// this is also used to determine the weight of diffuse brdf and specular brdf
+		vec3 f_Schlick = F_Schlick(f0, LoH);
+
+		// cook-torrance microfacet specular brdf: NormalDistribution * GeometryOcclusion * Fresnel
+		vec3 f_Specular = D_GGX(roughness, NoH) * V_SmithGGXCorrelated(NoV, NoL, roughness) * f_Schlick;
+		// lambertian diffuse brdf
+		vec3 f_Diffuse = Fd_Lambertian() * diffuseColor;
+
+		vec3 kd = (1. - f_Schlick) * (1. - metalness);
+
+		color += (kd * f_Diffuse + f_Specular) * radiance * NoL;
+	}
+	return max(vec3(0.), color);
+}
+
 #define EPS 1e-3
 #define PI 3.141592653589793
 #define PI2 6.283185307179586
 
-#define BLOCKER_SEARCH_NUM_SAMPLES 16 
-#define PCF_NUM_SAMPLES 16 
-#define NEAR_PLANE 0.1
-#define LIGHT_WORLD_SIZE .2
-#define LIGHT_FRUSTUM_WIDTH 3.75 
-#define LIGHT_SIZE_UV LIGHT_WORLD_SIZE/LIGHT_FRUSTUM_WIDTH
-
-vec2 poissonDisk[16] = vec2[16]( 
- vec2( -0.94201624, -0.39906216 ), 
- vec2( 0.94558609, -0.76890725 ), 
- vec2( -0.094184101, -0.92938870 ), 
- vec2( 0.34495938, 0.29387760 ), 
- vec2( -0.91588581, 0.45771432 ), 
- vec2( -0.81544232, -0.87912464 ), 
- vec2( -0.38277543, 0.27676845 ), 
- vec2( 0.97484398, 0.75648379 ), 
- vec2( 0.44323325, -0.97511554 ), 
- vec2( 0.53742981, -0.47373420 ), 
- vec2( -0.26496911, -0.41893023 ), 
- vec2( 0.79197514, 0.19090188 ), 
- vec2( -0.24188840, 0.99706507 ), 
- vec2( -0.81409955, 0.91437590 ), 
- vec2( 0.19984126, 0.78641367 ), 
- vec2( 0.14383161, -0.14100790 )
- );
-
-float GetDirShadowBias(vec3 normal, vec3 lightDir)
+float GetDirShadowBias(vec3 normal, vec3 lightDir, float cascade)
 {	
-	const float MINIMUM_SHADOW_BIAS = 0.0001;
-	float bias = max(MINIMUM_SHADOW_BIAS * (1.0 - dot(normal, lightDir)), MINIMUM_SHADOW_BIAS);
-	return MINIMUM_SHADOW_BIAS;
+	const float MINIMUM_SHADOW_BIAS = 0.001;
+	float bias = max(MINIMUM_SHADOW_BIAS * (1.0 - dot(normal, lightDir)), MINIMUM_SHADOW_BIAS) * (cascade + 1.);
+	return bias;
 }
 
 
-float PenumbraSize(float zReceiver, float zBlocker) //Parallel plane estimation
-{ 
- return (zReceiver - zBlocker) / zBlocker; 
-} 
+// yokohama
+const vec3[9] gSH9Color = vec3[9](
+vec3(0.187413, 0.117695, 0.0971929),
+vec3(0.0110947, -0.00559425, -0.0095226),
+vec3(-0.0176567, -0.00918142, -0.00868316),
+vec3(-0.0211396, -0.0150282, -0.0219823),
+vec3(0.0161046, 0.0136101, 0.0100705),
+vec3(0.00540282, 0.00556897, 0.00673108),
+vec3(-0.0206313, -0.00648618, -0.00285285),
+vec3(0.0276528, 0.0245642, 0.0239924),
+vec3(0.187039, 0.110578, 0.0859501)
+);
+// grace cathedral
+//const vec3[9] gSH9Color = vec3[9](
+//vec3(1.39351, 0.784853, 0.752926),
+//vec3(0.129026, 0.149647, 0.162697),
+//vec3(0.0197399, 0.00963427, 0.0712005),
+//vec3(-0.0339507, -0.00624006, -0.0840478),
+//vec3(0.134226, 0.113336, 0.176077),
+//vec3(0.00318684, 0.0711683, 0.0416948),
+//vec3(-0.24864, -0.213819, -0.210963),
+//vec3(-0.211575, -0.124532, -0.0635663),
+//vec3(0.233533, 0.133927, -0.00847369)
+//);
 
-float SearchRegionRadiusUV(float zWorld)
-{
-	const float light_zNear = 0.0; // 0.01 gives artifacts? maybe because of ortho proj?
-	const float lightRadiusUV = 0.05;
-	return lightRadiusUV * (zWorld - light_zNear) / zWorld;
+// indoor
+//const vec3[9] gSH9Color = vec3[9](
+//vec3(0.51847, 0.510833, 0.498099),
+//vec3(-0.0139187, -0.0198636, -0.0233149),
+//vec3(-0.0229853, -0.0361403, -0.0237941),
+//vec3(0.0263349, 0.0681706, 0.0585434),
+//vec3(-0.0508704, -0.0607166, -0.0570893),
+//vec3(0.0514967, 0.0357191, 0.0207576),
+//vec3(0.0147249, 0.0112061, -0.0267427),
+//vec3(0.00411591, 0.0257378, 0.042852),
+//vec3(0.0642033, 0.0399831, 0.0190294)
+//);
+const float A0 = sqrt(4. * PI);
+const float A1 = sqrt(4. * PI / 3.);
+const float A2 = sqrt(4. * PI / 5.);
+
+// IBL diffuse SH
+vec3 IBLDiffuseSH(vec3 N) {
+
+    vec3 irradiance = gSH9Color[0] * 0.282095f * A0
+        + gSH9Color[1] * 0.488603f * N.y * A1
+        + gSH9Color[2] * 0.488603f * N.z * A1
+        + gSH9Color[3] * 0.488603f * N.x * A1
+        + gSH9Color[4] * 1.092548f * N.x * N.y * A2
+        + gSH9Color[5] * 1.092548f * N.y * N.z * A2
+        + gSH9Color[6] * 0.315392f * (3.0f * N.z * N.z - 1.0f) * A2
+        + gSH9Color[7] * 1.092548f * N.x * N.z * A2
+        + gSH9Color[8] * 0.546274f * (N.x * N.x - N.y * N.y) * A2;
+	return irradiance;
 }
 
-vec2 SamplePoisson(int index)
-{
-	return poissonDisk[index % 16];
-}
+float SpecularAntiAliasing(vec3 n, float rs) {
+	float SIGMA2 = 0.15915494;
+	float KAPPA = 0.18;
 
-float FindBlockerDistance(vec3 shadowCoords, float uvLightSize, float bias) {
-	int blockers = 0;
-	float avgBlockerDistance = 0.;
+	vec3 dndu = dFdx(n);
+	vec3 dndv = dFdy(n);
 
-	float searchWidth =  LIGHT_SIZE_UV * (shadowCoords.z - NEAR_PLANE) / shadowCoords.z;
-//	float searchWidth = SearchRegionRadiusUV(shadowCoords.z);
+	float kernelRoughness2 = 2. * SIGMA2 * (dot(dndu, dndu) + dot(dndv, dndv));
+	float clampedKernelRoughness2 = min(kernelRoughness2, KAPPA);
+	float filteredRoughness2 = clamp(rs + clampedKernelRoughness2, 0., 1.);
 
-	for (int i = 0; i < 16; i++)
-	{
-		float z = texture(shadowMap, vec3(shadowCoords.xy + SamplePoisson(i) * searchWidth, 0)).r;
-		if (z < (shadowCoords.z - bias))
-		{
-			blockers++;
-			avgBlockerDistance += z;
-		}
-	}
+	return sqrt(filteredRoughness2);
 
-	if (blockers > 0) {
-		return avgBlockerDistance / float(blockers);
-	} else {
-		return -1;
-	}
-}
-
-float NV_PCF_DirectionalLight(vec3 shadowCoords, float uvRadius, float bias)
-{
-	float sum = 0;
-	for (int i = 0; i < 16; i++)
-	{
-		vec2 offset = poissonDisk[i] * uvRadius;
-		float z = texture(shadowMap, vec3(shadowCoords.xy + offset, 0)).r;
-		sum += step(shadowCoords.z - bias, z);
-	}
-	return sum / 16.0f;
-}
-
-float PCF_DirectionalLight(vec3 shadowCoords, float uvRadius, float bias)
-{
-	int numPCFSamples = 16;
-
-	float sum = 0;
-	for (int i = 0; i < numPCFSamples; i++)
-	{
-		vec2 offset = SamplePoisson(i) * uvRadius;
-		float z = texture(shadowMap, vec3(shadowCoords.xy + offset, 0)).r;
-		sum += step(shadowCoords.z - bias, z);
-	}
-	return sum / numPCFSamples;
-}
-
-float PCSS(vec3 shadowCoords, float bias, float uvLightSize) {
-	float blockerDistance  = FindBlockerDistance(shadowCoords, uvLightSize, bias);
-
-	if(blockerDistance == -1) {
-		return 1.; // no occlusion
-	}
-
-	float penumbraWidth = (shadowCoords.z - blockerDistance) / blockerDistance;
-
-	float uvRadius = penumbraWidth * LIGHT_SIZE_UV * NEAR_PLANE / shadowCoords.z;
-
-	return NV_PCF_DirectionalLight(shadowCoords, uvRadius, bias);
 }
 
 void main() {
@@ -219,30 +289,50 @@ void main() {
 	vec4 albedoMetalness = texture(albedoMetalnessMap, uv);
 	vec4 normalRoughness = texture(normalRoughnessMap, uv);
 	vec4 positionOcclusion = texture(positionOcclusionMap, uv);
-	vec3 emission = texture(emissionMap, uv).rgb;
-
+	vec4 emissionShadow = texture(emissionShadowMap, uv);
+	
+	vec3 emission = emissionShadow.rgb;
+	float receiveShadow = emissionShadow.a;
 	vec3 position = positionOcclusion.rgb;
 	vec3 albedo =  albedoMetalness.rgb;
-	vec3 n = normalRoughness.rgb;
+	vec3 n = normalize(normalRoughness.rgb);
 	float metalness = albedoMetalness.a;
 	float roughness = normalRoughness.a;
 
-	if(length(n) == 0) {
+	if(length(normalRoughness.rgb) == 0) {
 		color = vec4(0., 0., 0., 1.);
 		return;
 	}
+	
+	// specular anti aliasing
+	roughness = SpecularAntiAliasing(n, roughness * roughness);
+//	roughness *= roughness;
+//	if(n.x == -1){
+//		color = vec4(1., 0., 0., 1.);
+//		return;
+//	}
 
 	// inverse light
 	vec3 l = normalize(-globalRenderData.directionalLightDirection);
 	// view/eye vector
-	vec3 v = normalize(globalRenderData.eye);
+	vec3 v = normalize(globalRenderData.eye - position);
 	// half vector of light and view
 	vec3 h = normalize(l + v);
 
 	float NoH = max(dot(n, h), 0.);
-	float NoV = max(dot(n, v), 0.);
-	float NoL = max(dot(n, l), 0.);
+	float NoV = clamp(dot(n, v) + 1e-5, 0, 1.);
+	float NoL = clamp(dot(n, l) + 1e-5, 0, 1.);
 	float VoH = max(dot(v, h), 0.);
+	float LoH = max(dot(l, h), 0.);
+
+	PBRParameters params;
+	params.albedo = albedo;
+	params.position = position;
+	params.metalness = metalness;
+	params.normal = n;
+	params.roughness = roughness;
+	params.view = v;
+	params.NoV = NoV;
 
 	// conductor doesn't have diffuse effect
 	vec3 diffuseColor =  albedo.rgb;
@@ -254,7 +344,7 @@ void main() {
 
 	// fresnel term for specular
 	// this is also used to determine the weight of diffuse brdf and specular brdf
-	vec3 f_Schlick = F_Schlick(f0, VoH);
+	vec3 f_Schlick = F_Schlick(f0, LoH);
 
 	// cook-torrance microfacet specular brdf: NormalDistribution * GeometryOcclusion * Fresnel
 	vec3 f_Specular = D_GGX(roughness, NoH) * V_SmithGGXCorrelated(NoV, NoL, roughness) * f_Schlick;
@@ -292,33 +382,68 @@ void main() {
 	
 	// apply shadow
 	float shadow = 1.;
-	float shadowBias = GetDirShadowBias(n, l);
+	float shadowBias = GetDirShadowBias(n, l, cascadeLevel);
 
 //	shadow = HardShadow(texUV, shadowMapUV.z, shadowBias, cascadeLevel);
-	shadow = PCF_Box7x7(texUV, shadowMapUV.z, shadowBias, cascadeLevel);
+	shadow = PCF_Box3x3(texUV, shadowMapUV.z, shadowBias, cascadeLevel);
+//	shadow =  PCSS_DirectionalLight(shadowMap, cascadeLevel, vec3(texUV, shadowMapUV.z), 0., shadowBias);
 
 	// smooth transition between cascades
 	if(true) {
 		float transition = globalRenderData.cascadeSplits[cascadeLevel + 1].y;
 
 		if(cascadeRadius - centerDistance < transition) {
-		
+			
+			float shadowBias1 = GetDirShadowBias(n, l, cascadeLevel + 1);
 			vec4 a = globalRenderData.lightVPCascade[cascadeLevel + 1] * vec4(position, 1.);
-			float shadowNext = PCF_Box7x7(vec2(a.x * .5 + .5, a.y * .5 + .5), a.z, shadowBias, cascadeLevel + 1);
+			float shadowNext = PCF_Box3x3(vec2(a.x * .5 + .5, a.y * .5 + .5), a.z, shadowBias1, cascadeLevel + 1);
+//			float shadowNext = PCSS_DirectionalLight(shadowMap, cascadeLevel + 1, vec3(a.x * .5 + .5, a.y * .5 + .5, a.z), 0., shadowBias);
 
 			shadow = mix(shadowNext, shadow, (cascadeRadius - centerDistance) / transition);
 		}
 	}
 // Shadow End
 //---------------------------------------------------------------------------------------------------------------------
+	color = vec4(vec3(0.), 1.);
+	// directional light shading
+	color = vec4(((kd * f_Diffuse + f_Specular) * globalRenderData.directionalLightRadiance * NoL), 1.);
+	if(receiveShadow == 1.) {
+		color = vec4((color.rgb * shadow), 1.);
+	}
+	// point light shading
+	vec3 pointLightShading = CalculatePointLight(params);
+	color += vec4(pointLightShading, 1.);
 
-	// final shading
-	color = vec4(((kd * f_Diffuse + f_Specular) * globalRenderData.directionalLightRadiance * NoL + emission) * shadow, 1.);
+	vec3 diffuseIBL = IBLDiffuseSH(n) * albedo;
 
-	color = vec4(emission, 1.);
-//	if(color.x > 1.) {
-//		color = vec4(1., 0., 0., 1.);
-//	}
+	float r = sqrt(roughness);
+
+	vec3 R = normalize(reflect(-v, n));
+//	R = vec3(R.x, R.z, R.y);
+	vec3 reflection = textureLod(specularMap, R, r * 4.).rgb;
+
+	vec3 F        = F_SchlickR(clamp(dot(h, v), 0.0, 1.0), f0, r);
+	vec2 brdfLUT = texture(brdfLut, vec2(clamp(dot(h, v), 0.0, 1.0), r)).rg;
+
+	vec3 specularIBL = reflection * (F * brdfLUT.x + brdfLUT.y);
+
+	
+	vec3 kD = 1.0 - F;
+	kD *= 1.0 - metalness;
+
+	vec3 IBL = (kD * diffuseIBL + specularIBL);
+
+	color += vec4(IBL, 1.);
+
+	// ambient
+	color += vec4(albedo * vec3(0.03), 1.);
+
+
+//	color = vec4(n * .5 + .5, 1.);
+	// emission
+	color += vec4(emission, 1.);
+
+//	color = vec4(n, 1.);
 //
 //	switch(cascadeLevel) {
 //		case 0:
