@@ -20,7 +20,7 @@ int main()
 {
     using namespace Zephyr;
 
-    auto engine = Engine::Create({1920, 1080, DriverType::Vulkan, "ZephyrEngineTest", false, false, true});
+    auto engine = Engine::Create({1080, 720, DriverType::Vulkan, "ZephyrEngineTest", false, false, true});
 
     engine->Run([&](Engine* engine) {
         // auto mask  = engine->CreateMesh("asset/model/venice_mask/scene.gltf");
@@ -60,7 +60,7 @@ int main()
 
         auto e3               = scene->CreateEntity();
         auto cameraComponent3 = scene->AddComponent<MainCameraComponent>(e3);
-        cameraComponent3->camera.SetPerspective(45., 1920. / 1080., .1, 1000.);
+        cameraComponent3->camera.SetPerspective(45., 1080. / 720., .1, 1000.);
         cameraComponent3->camera.LookAt({0, 7, 20}, {0, -1, -1}, {0.f, 1.f, 0.f});
 
         scene->AddSystem<RenderSystem>();

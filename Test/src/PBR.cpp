@@ -38,7 +38,6 @@ int main()
     box2->SetMaterials({material2});
 
     engine->Run([&](Engine* engine) {
-
         // auto mask  = engine->CreateMesh("asset/model/venice_mask/scene.gltf");
         auto scene = engine->CreateScene("test");
 
@@ -46,7 +45,7 @@ int main()
         auto lightComponent2             = scene->AddComponent<DirectionalLightComponent>(e2);
         lightComponent2->light.direction = {glm::sin(-glm::radians(27.)), -.5f, -glm::cos(glm::radians(27.))};
         lightComponent2->light.direction = {0, -0.2, -1};
-        lightComponent2->light.radiance  = {.3, .3, .3};
+        lightComponent2->light.radiance  = {0., 0., 0.};
 
         for (float i = -3.f; i < 3.f; i++)
         {
@@ -101,7 +100,7 @@ int main()
                 //{
                 //     continue;
                 // }
-                auto sphere         = engine->CreateMesh("asset/model/Default/Sphere.fbx");
+                auto sphere   = engine->CreateMesh("asset/model/Default/Sphere.fbx");
                 auto material = engine->CreateMaterial(ShadingModel::Lit);
                 material->SetConstantBlock<glm::vec3>("albedo", {1.0, 1.0, 1.0});
                 material->SetConstantBlock<glm::vec3>("emission", {0.0, 0., 0.});

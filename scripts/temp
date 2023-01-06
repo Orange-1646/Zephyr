@@ -258,7 +258,7 @@ float SpecularAntiAliasing(vec3 n, float rs) {
 }
 
 vec3 GetWorldPositionFromUV(vec2 uv) {
-	float depth = gl_FragCoord.z;
+	float depth = gl_FragDepth;
 	vec4 ndcCoord = vec4(uv * 2. - 1., depth, 1.);
 
 	mat4 inverseVP = inverse(globalRenderData.vp);
@@ -302,6 +302,14 @@ void main() {
 	vec3 v = normalize(globalRenderData.eye - position);
 	// half vector of light and view
 	vec3 h = normalize(l + v);
+
+	vec3 anisotropicTangent = cross(bitangent, v);
+	vec3 anisotropicNormal = cross(anisotropicTangent, bitangent);
+
+	float anisotropy = 0.f;
+
+	vec3 bentNormal = normalize(mix(n, anisotropicNormal, anisotropy));
+	vec3 refl = reflect(-v, bentNormal);
 
 	float NoH = max(dot(n, h), 0.);
 	float NoV = clamp(dot(n, v) + 1e-5, 0, 1.);
