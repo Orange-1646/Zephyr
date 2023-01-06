@@ -133,7 +133,7 @@ namespace Zephyr
         float    cascadeExponentScale = 2.5;
 
         // 基于缩放系数（m_cascadeExponentScale）计算等比数列
-        float expScale[8] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}; // 我的框架最多允许 8 级级联
+        float expScale[4]        = {1.0f, 0.0f, 0.0f, 0.0f};
         float expNormalizeFactor = 1.0f;
 
         for (uint32_t i = 1; i < cascadeCount; i++)
@@ -392,7 +392,7 @@ namespace Zephyr
                 }
 
                 // skybox
-                if (false)
+                if (true)
                 {
                     m_Driver->BindShaderSet(m_Engine->GetShaderSet("skybox")->GetHandle());
                     m_Driver->BindTexture(m_Engine->GetDefaultSkybox()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
@@ -607,11 +607,10 @@ namespace Zephyr
                 driver->BindTexture(color3, 1, 3, TextureUsageBits::Sampled);
 
                 driver->Draw(3, 0);
-                if (false)
+                if (true)
                 {
                     driver->SetRasterState({Culling::BackFace, FrontFace::CounterClockwise, true, false, false});
                     driver->BindShaderSet(engine->GetShaderSet("skybox")->GetHandle());
-                    // driver->BindTexture(engine->GetDefaultSkybox()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
                     driver->BindTexture(
                         engine->GetDefaultPrefilteredEnv()->GetHandle(), 0, 1, TextureUsageBits::Sampled);
                     auto skyboxMesh = engine->GetSkyboxMesh();
@@ -886,10 +885,7 @@ namespace Zephyr
                     driver->BindTexture(output, outputRange, 0, 0, TextureUsageBits::Storage);
                     driver->BindTexture(input, inputRange, 0, 1, TextureUsageBits::Sampled, SamplerWrap::ClampToEdge);
 
-                    uint32_t ii[7] = {0, 1, 2, 3, 4, 5, 6};
-                    auto     v     = ii[i];
-
-                    driver->BindConstantBuffer(0, 4, ShaderStageBits::Compute, (void*)&self->ii[i]);
+                    driver->BindConstantBuffer(0, 4, ShaderStageBits::Compute, (void*)&i);
 
                     uint32_t groupCountX = dimension.first % 16 == 0 ? dimension.first / 16 : dimension.first / 16 + 1;
                     uint32_t groupCountY =
@@ -898,7 +894,6 @@ namespace Zephyr
                     auto x = groupCountX / pow(2, i + 1);
                     auto y = groupCountY / pow(2, i + 1);
                     driver->Dispatch(ceil(x), ceil(y), 1);
-                    // driver->Dispatch(100, 100, 1);
                 });
         }
         //// upsample

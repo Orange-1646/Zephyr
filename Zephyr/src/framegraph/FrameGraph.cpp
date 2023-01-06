@@ -35,9 +35,9 @@ namespace Zephyr
                     123123;
                 }
                 // TODO: add type safety check
-                auto resourceNode = static_cast<ResourceNode*>(edge->to);
-                auto& resource1     = resourceNode->GetHandle();
-                auto resource     = GetResource(resourceNode->GetHandle());
+                auto  resourceNode = static_cast<ResourceNode*>(edge->to);
+                auto& resource1    = resourceNode->GetHandle();
+                auto  resource     = GetResource(resourceNode->GetHandle());
                 resource->AddPassDependency(node);
             }
         }
@@ -54,20 +54,6 @@ namespace Zephyr
             first->AddDevirtualize(resource);
             last->AddDestroy(resource);
         }
-
-        //for (auto& passNode : m_PassNodes)
-        //{
-        //    if (passNode->IsCulled())
-        //    {
-        //        std::cout << "Current Node is culled away, name: " << passNode->GetName() << std::endl;
-        //    }
-        //    else
-        //    {
-        //        std::cout << "Current Node is not culled away, name: " << passNode->GetName() << std::endl;
-        //        passNode->Log();
-        //        std::cout << "----------------------------------------\n";
-        //    }
-        //}
     }
 
     void FrameGraph::Execute()
@@ -168,7 +154,8 @@ namespace Zephyr
         return node;
     }
 
-    PassNode* FrameGraph::CreatePassNode(FrameGraphPassBase* pass) { 
+    PassNode* FrameGraph::CreatePassNode(FrameGraphPassBase* pass)
+    {
         auto node = new PassNode(this, pass);
         m_Graph.Add(node);
         m_PassNodes.push_back(node);

@@ -194,20 +194,6 @@ namespace Zephyr
                 litMaterial->m_TextureCount = 4;
 
                 litMaterial->m_TextureDescriptors.resize(4);
-                // skybox
-                // auto& textureDesc0   = litMaterial->m_TextureDescriptors[0];
-                // textureDesc0.name    = "skybox";
-                // textureDesc0.set     = 0;
-                // textureDesc0.binding = 1;
-                // textureDesc0.type    = SamplerType::SamplerCubeMap;
-                // textureDesc0.usage   = TextureUsageBits::Sampled;
-                //// shadowmap
-                // auto& textureDesc1   = litMaterial->m_TextureDescriptors[1];
-                // textureDesc1.name    = "shadowmap";
-                // textureDesc1.set     = 0;
-                // textureDesc1.binding = 2;
-                // textureDesc1.type    = SamplerType::Sampler2DArray;
-                // textureDesc1.usage   = TextureUsageBits::Sampled;
                 //  albedoMap
                 auto& textureDesc2   = litMaterial->m_TextureDescriptors[0];
                 textureDesc2.name    = "albedoMap";
@@ -247,19 +233,6 @@ namespace Zephyr
             {
                 litMaterial->m_ConstantBlockCount = 1;
                 litMaterial->m_ConstantBlockDescriptors.resize(1);
-
-                // note this should not be in material
-                // world matrix
-                // auto& constantBlock0  = litMaterial->m_ConstantBlockDescriptors[0];
-                // constantBlock0.name   = "worldMatrix";
-                // constantBlock0.offset = 0;
-                // constantBlock0.size   = 4 * 4 * 4;
-                // constantBlock0.members.resize(1);
-                // constantBlock0.stage = ShaderStageBits::Vertex;
-                // auto& block0Member0  = constantBlock0.members[0];
-                // block0Member0.name   = "worldMatrix";
-                // block0Member0.offset = 0;
-                // block0Member0.size   = 4 * 4 * 4;
 
                 // material info
                 auto& constantBlock1  = litMaterial->m_ConstantBlockDescriptors[0];
@@ -373,37 +346,18 @@ namespace Zephyr
 
         // default skybox
         {
-            // std::string view[6] = {Path::GetFilePath("asset/cubemap/Milkyway/px.png"),
-            //                        Path::GetFilePath("asset/cubemap/Milkyway/nx.png"),
-            //                        Path::GetFilePath("asset/cubemap/Milkyway/py.png"),
-            //                        Path::GetFilePath("asset/cubemap/Milkyway/ny.png"),
-            //                        Path::GetFilePath("asset/cubemap/Milkyway/pz.png"),
-            //                        Path::GetFilePath("asset/cubemap/Milkyway/nz.png")};
             std::string view[6] = {Path::GetFilePath("asset/cubemap/Yokohama3/posx.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/negx.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/posy.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/negy.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/posz.jpg"),
                                    Path::GetFilePath("asset/cubemap/Yokohama3/negz.jpg")};
-            // std::string view[6] = {Path::GetFilePath("asset/cubemap/GraceCathedral/posx.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/negx.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/posy.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/negy.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/posz.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/GraceCathedral/negz.jpg")};
-            // std::string view[6] = {Path::GetFilePath("asset/cubemap/Indoor/posx.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/Indoor/negx.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/Indoor/posy.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/Indoor/negy.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/Indoor/posz.jpg"),
-            //                        Path::GetFilePath("asset/cubemap/Indoor/negz.jpg")};
-            m_DefaultSkybox = m_TextureLoader.Load(view);
+            m_DefaultSkybox     = m_TextureLoader.Load(view);
             driver->GenerateMips(m_DefaultSkybox->GetHandle());
         }
         {
             // prefiltered env map
             m_DefaultPrefilterEnv = m_TextureLoader.LoadEnv(Path::GetFilePath("asset/cubemap/Yokohama3/yokohama.bin"));
-            // m_DefaultPrefilterEnv = m_TextureLoader.LoadEnv(Path::GetFilePath("asset/cubemap/Indoor/Indoor.bin"));
         }
         // brdf lut for split sum approximation
         {

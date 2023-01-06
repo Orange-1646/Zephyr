@@ -177,7 +177,8 @@ namespace Zephyr
         texture->Update(this, desc);
     }
 
-    void VulkanDriver::GenerateMips(Handle<RHITexture> handle) {
+    void VulkanDriver::GenerateMips(Handle<RHITexture> handle)
+    {
         auto texture = GetResource<VulkanTexture>(handle);
         if (!texture)
         {
@@ -833,7 +834,6 @@ namespace Zephyr
                                     range.levelCount,
                                     VulkanUtil::GetImageLayoutFromUsage(nextUsage),
                                     pipeline);
-        // EndSingleTimeCommandBuffer(cb);
     }
 
 } // namespace Zephyr

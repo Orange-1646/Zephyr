@@ -106,7 +106,6 @@ namespace Zephyr
         float    m_CascadeTransitionScale = .3;
         uint32_t m_ShadowMapResolution    = 2048;
         uint32_t m_BloomDownsampleCount   = 7;
-        uint32_t ii[7]                    = {0, 1, 2, 3, 4, 5, 6};
 
         // the smaller the threshold is, the more we do fxaa->better result, slower performance
         FXAAConstant m_FXAAConstant {};

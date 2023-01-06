@@ -15,10 +15,10 @@ namespace Zephyr
     {
     public:
         FrameGraphPassBase(const std::string& name) : m_Name(name) {}
-        virtual ~FrameGraphPassBase()           = default;
+        virtual ~FrameGraphPassBase()                                = default;
         virtual void Execute(FrameGraph* graph, PassRenderTarget rt) = 0;
 
-        std::string GetName() { return m_Name; }
+        inline std::string GetName() const { return m_Name; }
 
     private:
         std::string m_Name;

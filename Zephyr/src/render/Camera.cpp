@@ -19,9 +19,6 @@ namespace Zephyr
         postTransformDirection = direction;
 
         view = glm::lookAt(p, p + d, u);
-
-        // float row;
-        // glm::extractEulerAngleYXZ(view, yaw, pitch, row);
     }
     void Camera::Rotate(double horizontal, double vertical)
     {

@@ -260,24 +260,6 @@ vec3 CalculatePointLight(PBRParameters params) {
 		vec3 position = params.position;
 
 		vec3 ray = light.position - position;
-
-//		float lightDistance = length(light.position - position);
-//		float lightDistance = 2;
-
-//		float attenuation = 1 / (1 + 2 / light.radius * lightDistance + (lightDistance * lightDistance / light.radius * light.radius));
-
-//		float attenuation = clamp(1.0 - (lightDistance * lightDistance) / (light.radius * light.radius), 0.0, 1.0);
-//		attenuation *= mix(attenuation, 1.0, light.falloff);
-//
-//		float attenuation =  1.0 / (1. + .09 * lightDistance + 
-//    		    .032 * (lightDistance * lightDistance));
-
-//		float denom = lightDistance / light.radius + 1.;
-//		float attenuation = 1. / (denom * denom);
-//		attenuation = (attenuation - light.falloff) / (1. - light.falloff);
-//		attenuation = max(attenuation, 0.);
-//
-
 		float distanceSqr = max(dot(ray, ray), 0.00001);
 		float rangeAttenuation = clamp(1.0 - (distanceSqr * distanceSqr / light.radius/ light.radius/ light.radius/ light.radius), 0., 1.);
 		rangeAttenuation *= rangeAttenuation;
@@ -351,12 +333,6 @@ void main() {
     float NoL = clamp(dot(n, l), 0.0, 1.0);
     float NoH = clamp(dot(n, h), 0.0, 1.0);
     float LoH = clamp(dot(l, h), 0.0, 1.0);
-
-//		float NoH = max(dot(n, h), 0.);
-//	float NoV = clamp(dot(n, v) + 1e-5, 0, 1.);
-//	float NoL = clamp(dot(n, l) + 1e-5, 0, 1.);
-//	float VoH = max(dot(v, h), 0.);
-
 
 	PBRParameters params;
 	params.albedo = albedo;
@@ -437,10 +413,6 @@ void main() {
 	// final shading
 	color = vec4(((kd * f_Diffuse + f_Specular) * globalRenderData.directionalLightRadiance * NoL + emission), 1.);
 
-//	color += vec4(CalculatePointLight(params), 1.);
-//	if(color.x > 1.) {
-//		color = vec4(1., 0., 0., 1.);
-//	}
 //
 //	switch(cascadeLevel) {
 //		case 0:

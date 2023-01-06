@@ -28,10 +28,6 @@ void main() {
 	vec2 invocID = vec2(gl_GlobalInvocationID);
 
 	vec2 resultSize = imageSize(result);
-//	
-//	if(invocID.x > resultSize.x || invocID.y > resultSize.y) {
-//        return;
-//    }
 	vec2 texCoords = invocID/imageSize(result).xy;
     texCoords += (1.0f / resultSize) * 0.5f;
 
@@ -42,8 +38,6 @@ void main() {
 	vec2 texelSize = 1./texSize;
 	// the upsampled color
 	vec3 color2 = UpsampleTent9(tex2, 0, texCoords, texelSize);
-//	vec3 color2 = textureLod(tex2, texCoords, 0).rgb;
 	
 	imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(color1 + color2, 1.));
-//	imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(resultSize, 0., 1.));
 }

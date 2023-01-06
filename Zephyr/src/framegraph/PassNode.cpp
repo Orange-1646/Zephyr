@@ -15,27 +15,16 @@ namespace Zephyr
         read.resource = resource;
     }
 
-    void PassNode::AddWrite(VirtualResourceBase* resource, TextureUsage usage) {
+    void PassNode::AddWrite(VirtualResourceBase* resource, TextureUsage usage)
+    {
 
         auto& write    = m_Writes.emplace_back();
-        write.usage   = usage;
+        write.usage    = usage;
         write.resource = resource;
     }
 
     void PassNode::Devirtualize(RenderResourceManager* manager)
     {
-        if (m_Pass->GetName() == "bloom compute prefilter")
-        {
-            int a = 0;
-        }
-        if (m_Pass->GetName() == "shadow cascade 0")
-        {
-            int a = 0;
-        }
-        if (m_Pass->GetName() == "lighting")
-        {
-            int a = 0;
-        }
         for (auto& resource : m_Devirtualize)
         {
             resource->Devirtualize(manager);
@@ -84,20 +73,6 @@ namespace Zephyr
     {
         // the assumption here is that if the user didn't setup a proper render target,
         // this pass is a compute pass
-        
-        if (m_Pass->GetName() == "bloom compute prefilter")
-        {
-            int a = 0;
-        }
-        if (m_Pass->GetName() == "shadow cascade 0")
-        {
-            int a = 0;
-        }
-        if (m_Pass->GetName() == "lighting")
-        {
-            int a = 0;
-        }
-        
 
         PipelineType type = m_RenderTarget.rt.IsValid() ? PipelineTypeBits::Graphics : PipelineTypeBits::Compute;
         // add pipeline barrier
@@ -112,9 +87,7 @@ namespace Zephyr
             m_FG->GetDriver()->SetupBarrier(r->GetRHITexture(), r->GetViewRange(), write.usage, type);
         }
         // execute
-        //m_FG->GetDriver()->BeginDebugMarker(m_Pass->GetName());
         m_Pass->Execute(graph, m_RenderTarget);
-        //m_FG->GetDriver()->EndDebugMarker(m_Pass->GetName());
 
         // destroy rendertarget
     }

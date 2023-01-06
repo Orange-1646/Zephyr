@@ -1,15 +1,15 @@
 #pragma once
-#include "pch.h"
 #include "Entity.h"
-#include "system/System.h"
 #include "component/Component.h"
+#include "pch.h"
+#include "system/System.h"
 
 namespace Zephyr
 {
     class Engine;
 
-    using EntityHandle = intptr_t;
-    using SystemHandle = intptr_t;
+    using EntityHandle                                = intptr_t;
+    using SystemHandle                                = intptr_t;
     inline constexpr SystemHandle InvalidSystemHandle = 0;
 
     /*
@@ -41,7 +41,8 @@ namespace Zephyr
             }
         }
 
-        EntityHandle CreateEntity() { 
+        EntityHandle CreateEntity()
+        {
             auto entity = new Entity();
             m_Entities.push_back(entity);
 
@@ -81,8 +82,8 @@ namespace Zephyr
         }
 
         template<typename T, typename = std::enable_if_t<std::is_base_of_v<SystemBase, T>>>
-        SystemHandle AddSystem() 
-        { 
+        SystemHandle AddSystem()
+        {
             auto system = new T(m_Engine);
 
             m_Systems.insert({T::ID, system});
@@ -144,8 +145,7 @@ namespace Zephyr
     private:
         Engine*                                   m_Engine;
         std::string                               m_DebugName;
-        std::vector<Entity*> m_Entities;
+        std::vector<Entity*>                      m_Entities;
         std::unordered_map<uint32_t, SystemBase*> m_Systems;
-        //std::vector<SystemBase*> m_Systems;
     };
-}
+} // namespace Zephyr

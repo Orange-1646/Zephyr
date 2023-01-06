@@ -61,11 +61,6 @@ void main() {
 
 	vec2 imgSize = imageSize(target);
 
-	// early escape for out of bound pixel
-//	if(xyz.x > imgSize.x ||xyz.y > imgSize.y || xyz.z >= 6) {
-//		return;
-//	}
-
 	vec2 uv = (gl_GlobalInvocationID.xy + .5) / imageSize(target).xy;
 	uv = 2. * uv - 1.;
 

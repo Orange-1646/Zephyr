@@ -37,8 +37,6 @@ float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.
 void main() {
 
 	// dithering to prevent color banding
-//	float dither = (rand(uv) - 0.5) / 255.0;
 	color = vec4(GammaCorrection(texture(colorInput, uv).rgb, 2.2),1.);
 	color += vec4(texture(dither, gl_FragCoord.xy / 8.0).r / 32.0 - (1.0 / 128.0));
-//	color = vec4(texture(colorInput, uv).rgb, 1.);
 }

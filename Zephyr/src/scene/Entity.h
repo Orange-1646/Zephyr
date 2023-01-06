@@ -27,7 +27,6 @@ namespace Zephyr
             T* component = new T();
 
             m_Components.insert({T::ID, component});
-            // m_Components.push_back({T::ID, component});
 
             m_ComponentMask |= T::ID;
 

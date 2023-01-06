@@ -40,7 +40,7 @@ void main() {
 	float roughness = materialUniforms.Roughness * texture(metallicRoughnessMap, uv).g;
 	
 	roughness = clamp(roughness, .005, 1.);
-	vec3 n = normalize(normalize(tbn * normalize(texture(normalMap, uv) * 2. - 1.).xyz).xyz * materialUniforms.UseNormalMap + (1. - materialUniforms.UseNormalMap) * normal);
+	vec3 n = normalize( (1. - materialUniforms.UseNormalMap) * normal);
 	n = normalize(n);
 	
 	outAlbedoMetalness = vec4(albedo, metalness);

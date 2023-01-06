@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON FATAL)
 set(CMAKE_CXX_EXTENSIONS OFF)
 project(ZephyrTool)
 
-file(GLOB ZEPHYR_TOOL_SRC main.cpp ./Common/*.cpp)
+file(GLOB ZEPHYR_TOOL_SRC ./Common/*.cpp)
 file(GLOB ZEPHYR_TOOL_SPECULAR_SRC ./SpecularMapGenerator/*.cpp)
 
 add_library(ZephyrTool ${ZEPHYR_TOOL_SRC})

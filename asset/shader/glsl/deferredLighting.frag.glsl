@@ -104,7 +104,7 @@ float unpack(vec4 rgbaDepth) {
 }
 
 // 7*7 box filter
-float PCF_Box3x3(vec2 shadowUv, float objectDepth, float bias, uint cascade) {
+float PCF_Box7x7(vec2 shadowUv, float objectDepth, float bias, uint cascade) {
 
 	vec2 texSize = textureSize(shadowMap, 0).xy;
 
@@ -209,7 +209,7 @@ float GetDirShadowBias(vec3 normal, vec3 lightDir, float cascade)
 	return bias;
 }
 
-
+// TODO: move this to env map
 // yokohama
 const vec3[9] gSH9Color = vec3[9](
 vec3(0.187413, 0.117695, 0.0971929),
@@ -222,31 +222,7 @@ vec3(-0.0206313, -0.00648618, -0.00285285),
 vec3(0.0276528, 0.0245642, 0.0239924),
 vec3(0.187039, 0.110578, 0.0859501)
 );
-// grace cathedral
-//const vec3[9] gSH9Color = vec3[9](
-//vec3(1.39351, 0.784853, 0.752926),
-//vec3(0.129026, 0.149647, 0.162697),
-//vec3(0.0197399, 0.00963427, 0.0712005),
-//vec3(-0.0339507, -0.00624006, -0.0840478),
-//vec3(0.134226, 0.113336, 0.176077),
-//vec3(0.00318684, 0.0711683, 0.0416948),
-//vec3(-0.24864, -0.213819, -0.210963),
-//vec3(-0.211575, -0.124532, -0.0635663),
-//vec3(0.233533, 0.133927, -0.00847369)
-//);
 
-// indoor
-//const vec3[9] gSH9Color = vec3[9](
-//vec3(0.51847, 0.510833, 0.498099),
-//vec3(-0.0139187, -0.0198636, -0.0233149),
-//vec3(-0.0229853, -0.0361403, -0.0237941),
-//vec3(0.0263349, 0.0681706, 0.0585434),
-//vec3(-0.0508704, -0.0607166, -0.0570893),
-//vec3(0.0514967, 0.0357191, 0.0207576),
-//vec3(0.0147249, 0.0112061, -0.0267427),
-//vec3(0.00411591, 0.0257378, 0.042852),
-//vec3(0.0642033, 0.0399831, 0.0190294)
-//);
 const float A0 = sqrt(4. * PI);
 const float A1 = sqrt(4. * PI / 3.);
 const float A2 = sqrt(4. * PI / 5.);
@@ -306,11 +282,6 @@ void main() {
 	
 	// specular anti aliasing
 	roughness = SpecularAntiAliasing(n, roughness * roughness);
-//	roughness *= roughness;
-//	if(n.x == -1){
-//		color = vec4(1., 0., 0., 1.);
-//		return;
-//	}
 
 	// inverse light
 	vec3 l = normalize(-globalRenderData.directionalLightDirection);
@@ -384,9 +355,7 @@ void main() {
 	float shadow = 1.;
 	float shadowBias = GetDirShadowBias(n, l, cascadeLevel);
 
-//	shadow = HardShadow(texUV, shadowMapUV.z, shadowBias, cascadeLevel);
-	shadow = PCF_Box3x3(texUV, shadowMapUV.z, shadowBias, cascadeLevel);
-//	shadow =  PCSS_DirectionalLight(shadowMap, cascadeLevel, vec3(texUV, shadowMapUV.z), 0., shadowBias);
+	shadow = PCF_Box7x7(texUV, shadowMapUV.z, shadowBias, cascadeLevel);
 
 	// smooth transition between cascades
 	if(true) {
@@ -396,8 +365,7 @@ void main() {
 			
 			float shadowBias1 = GetDirShadowBias(n, l, cascadeLevel + 1);
 			vec4 a = globalRenderData.lightVPCascade[cascadeLevel + 1] * vec4(position, 1.);
-			float shadowNext = PCF_Box3x3(vec2(a.x * .5 + .5, a.y * .5 + .5), a.z, shadowBias1, cascadeLevel + 1);
-//			float shadowNext = PCSS_DirectionalLight(shadowMap, cascadeLevel + 1, vec3(a.x * .5 + .5, a.y * .5 + .5, a.z), 0., shadowBias);
+			float shadowNext = PCF_Box7x7(vec2(a.x * .5 + .5, a.y * .5 + .5), a.z, shadowBias1, cascadeLevel + 1);
 
 			shadow = mix(shadowNext, shadow, (cascadeRadius - centerDistance) / transition);
 		}
@@ -438,13 +406,9 @@ void main() {
 	// ambient
 	color += vec4(albedo * vec3(0.03), 1.);
 
-
-//	color = vec4(n * .5 + .5, 1.);
 	// emission
 	color += vec4(emission, 1.);
 
-//	color = vec4(n, 1.);
-//
 //	switch(cascadeLevel) {
 //		case 0:
 //			color *= vec4(1., 0.25, 0.25, 1.);
